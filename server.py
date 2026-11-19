@@ -2668,15 +2668,30 @@ async def readyz():
         raise HTTPException(503, f"not ready: {e}")
 
 
+def _approx_rows(table):
+    """Row count without counting: COUNT(*) over millions of rows took a minute, and the UI polls /api/stats every few
+    seconds (the live badge), so the server stayed busy and showed "offline". SQLite: the rowid span (rows are appended and
+    the oldest deleted, so it is close). Postgres: the planner's estimate. An empty table is always exactly 0."""
+    if USE_PG:
+        n = qrows("SELECT GREATEST(reltuples, 0)::bigint FROM pg_class WHERE oid = to_regclass(?)", (f"{PG_SCHEMA}.{table}",))
+        n = int(n[0][0]) if n and n[0][0] is not None else 0
+        if n <= 0:   # never analysed yet: just tell empty from not empty
+            n = 1 if qrows(f"SELECT 1 FROM {table} LIMIT 1") else 0
+        return n
+    r = qrows(f"SELECT MAX(rowid) - MIN(rowid) + 1 FROM {table}")
+    return int(r[0][0] or 0) if r else 0
+
+
 @app.get("/api/stats")
 @ttl_cached
 def stats():
-    """Operational stats for monitoring NebuLens itself."""
+    """Operational stats for monitoring NebuLens itself. Row counts are close estimates (see _approx_rows)."""
     return {
-        "spans": q("SELECT COUNT(*) n FROM spans")[0]["n"],
-        "logs": q("SELECT COUNT(*) n FROM logs")[0]["n"],
-        "metrics": q("SELECT COUNT(*) n FROM metrics")[0]["n"],
-        "services": q("SELECT COUNT(DISTINCT service) n FROM spans")[0]["n"],
+        "spans": _approx_rows("spans"),
+        "logs": _approx_rows("logs"),
+        "metrics": _approx_rows("metrics"),
+        "services": q("SELECT COUNT(DISTINCT service) n FROM resource_seen WHERE sig='spans'")[0]["n"],
+        "approximate": True,
         "alert_rules": q("SELECT COUNT(*) n FROM alert_rules")[0]["n"],
         "synthetics": q("SELECT COUNT(*) n FROM synthetics")[0]["n"],
         "retention_hours": RETENTION_HOURS,

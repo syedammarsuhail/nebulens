@@ -58,3 +58,21 @@ def test_map_nodes_from_registry_not_span_scan(client, ingest, srv, monkeypatch)
     m = {r["service"]: r for r in rows}["map-meta-svc"]
     assert m["language"] == "java" and m["namespace"] == "map-ns" and m["version"] == "3.1.4"
     assert not [s for s in seen if "FROM spans" in s]      # the whole-window span scan took over a minute at scale
+
+
+def test_stats_does_not_count_whole_tables(client, ingest, srv, monkeypatch):
+    ingest.span("stats-svc", "stats-ns")
+    seen = []
+    real_q, real_rows = srv.q, srv.qrows
+    monkeypatch.setattr(srv, "q", lambda sql, args=(): (seen.append(sql), real_q(sql, args))[1])
+    monkeypatch.setattr(srv, "qrows", lambda sql, args=(): (seen.append(sql), real_rows(sql, args))[1])
+    s = client.get("/api/stats", headers={"Authorization": "Bearer tok"}).json()
+    assert s["spans"] >= 1 and s["services"] >= 1
+    assert not [x for x in seen if "COUNT(*)" in x.upper() and any(f"FROM {t}" in x for t in ("spans", "logs", "metrics"))]
+
+
+def test_stats_empty_table_is_zero(srv):
+    srv.db  # same module the app uses
+    with srv.db() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS _approx_probe(x INTEGER)")
+    assert srv._approx_rows("_approx_probe") == 0
