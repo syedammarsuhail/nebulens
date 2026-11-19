@@ -6,6 +6,8 @@
 >   Turn on with `helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values --set ebpf.enabled=true`.
 > - Tested on EKS: apps with no OpenTelemetry code were traced across three services within a minute, without restarting them.
 > - `scripts/eks.sh` creates the gp3 StorageClass that new EKS clusters lack.
+> - New `helm/nebulens/values-full.yaml`: everything on for a full test (collector keeping every trace, eBPF, the OpenTelemetry
+>   Operator and automatic agent injection). Use it with your platform overlay; see GETTING-STARTED, "Everything at once".
 >
 > **v11.1** — **Pulse0 is now NebuLens.** Image tag `nebulens_11_1`, chart `nebulens` `0.4.1` (includes v10.23 and earlier below).
 > v11.0 was published briefly under the name Oscilyx; v11.1 replaces it. Everything below that keeps Pulse0 installs working

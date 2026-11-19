@@ -138,6 +138,22 @@ and cluster metrics, and the **Kubernetes** page fills, without changing any app
 
   The pod restarts once with the language agent attached, and eBPF then skips it. Do not enable the Operator if it is
   already installed in the cluster.
+- **Everything at once (full test):** `helm/nebulens/values-full.yaml` turns on the collector (keeping every trace), eBPF,
+  the OpenTelemetry Operator and automatic agent injection. On bare metal:
+
+  ```bash
+  helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
+    -f ./helm/nebulens/values-baremetal.yaml -f ./helm/nebulens/values-full.yaml \
+    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.1 \
+    --set persistence.storageClass=local-path \
+    --set auth.token=$(openssl rand -hex 24) \
+    --set "autoInstrumentation.autoInject.namespaces={shop,payments}" \
+    --wait --timeout 10m
+  ```
+
+  eBPF traces every app straight away. Every 10 minutes the injector also adds the language agent to up to 3 workloads in
+  the listed namespaces (each restarts once) for in-code detail. Use the same token on later upgrades, or keep it in a
+  secret (`auth.existingSecret`).
 - **Apps that already use OpenTelemetry:** point their OTLP exporter at the collector,
   `http://nebulens-collector.observability.svc.cluster.local:4319` (inside the cluster), or straight at NebuLens on port 4318 with the
   header `Authorization: Bearer <token>`.
