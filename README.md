@@ -30,7 +30,7 @@ your network.
 |---|---|
 | Install on Kubernetes, a VM or a laptop | [GETTING-STARTED.md](GETTING-STARTED.md), every option in [ON-PREM.md](ON-PREM.md) |
 | Give or set up a client demo | [DEMO.md](DEMO.md) |
-| Upgrade, including from Pulse0 (the old name) | [UPGRADE.md](UPGRADE.md) |
+| Upgrade to a new version | [UPGRADE.md](UPGRADE.md) |
 
 Try it on your laptop:
 

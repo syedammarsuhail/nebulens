@@ -167,6 +167,21 @@ EOF
   local i
   for i in $(seq 1 30); do kubectl get nodes >/dev/null 2>&1 && break; echo "  waiting for the EKS API endpoint to resolve ($i/30)"; sleep 10; done
   kubectl get nodes
+  # New EKS clusters only ship the legacy in-tree gp2 class; values-eks.yaml asks for gp3 (EBS CSI driver).
+  if ! kubectl get storageclass gp3 >/dev/null 2>&1; then
+    say "gp3 StorageClass"
+    kubectl apply -f - <<'SC'
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+provisioner: ebs.csi.aws.com
+parameters: {type: gp3}
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+SC
+  fi
 }
 
 # Create an RDS Postgres instance INSIDE the cluster's own VPC (private, reachable

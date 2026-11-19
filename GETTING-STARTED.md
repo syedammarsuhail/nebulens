@@ -218,16 +218,6 @@ separately and is not part of this package.
 
 Your data is kept. New tables are created automatically.
 
-**Upgrading from Pulse0** (v10.x, the old name): keep your existing release name and resource names, or Kubernetes creates a
-new, empty volume:
-
-```bash
-helm -n observability upgrade pulse0 ./helm/nebulens --reset-then-reuse-values   --set nameOverride=pulse0 --set fullnameOverride=pulse0 --set-string image.tag=<new tag>
-```
-
-Your `PULSE0_*` settings, the `pulse0.db` file, the `pulse0` Postgres schema, ingest keys and the `pulse0-rum.js` browser
-script all keep working. See [UPGRADE.md](UPGRADE.md).
-
 ## 9. Storage and performance
 
 - **Use local disk or SSD for the database.** NFS makes every page slow; this is the most common cause of a slow install.
