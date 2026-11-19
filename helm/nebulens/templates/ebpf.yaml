@@ -1,0 +1,131 @@
+{{- if .Values.ebpf.enabled }}
+{{- if not .Values.collector.enabled }}
+{{- fail "ebpf.enabled needs collector.enabled=true: eBPF traces are sent through the NebuLens collector" }}
+{{- end }}
+{{- $name := printf "%s-ebpf" (include "nebulens.fullname" .) }}
+# Zero-restart tracing with OpenTelemetry eBPF Instrumentation (OBI). One privileged agent per node watches every
+# application process from the kernel and produces HTTP, gRPC, SQL, Redis, Kafka... spans with no code change and no
+# pod restart. Spans go to the node's NebuLens collector (Kubernetes metadata, sampling, auth) and then to NebuLens.
+# NebuLens' own namespace is never instrumented, so its ingest traffic cannot feed back into itself.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
+rules:
+  # read-only: names pods, deployments and services on each span
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "services", "nodes"]
+    verbs: ["list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
+data:
+  obi.yaml: |
+    discovery:
+      instrument:
+        - k8s_namespace: "*"
+      # in addition to OBI's built-in exclusions (kube-system, monitoring, OBI and collector binaries, ...)
+      exclude_instrument:
+        - k8s_namespace: {{ .Release.Namespace | quote }}
+        {{- range .Values.ebpf.excludeNamespaces }}
+        - k8s_namespace: {{ . | quote }}
+        {{- end }}
+    attributes:
+      kubernetes:
+        enable: true
+    otel_traces_export:
+      endpoint: http://{{ include "nebulens.fullname" . }}-collector.{{ .Release.Namespace }}.svc:4319
+      protocol: http/protobuf
+      sampler:
+        name: parentbased_traceidratio
+        arg: {{ .Values.ebpf.samplingRatio | quote }}
+    {{- if .Values.ebpf.contextPropagation }}
+    ebpf:
+      context_propagation: "all"
+    {{- end }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  labels:
+    app.kubernetes.io/component: ebpf
+    {{- include "nebulens.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: ebpf
+      {{- include "nebulens.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ toYaml .Values.ebpf | sha256sum }}
+      labels:
+        app.kubernetes.io/component: ebpf
+        {{- include "nebulens.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      hostPID: true                       # sees the processes of every pod on the node
+      {{- if .Values.ebpf.contextPropagation }}
+      hostNetwork: true                   # links calls between services into one trace
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ebpf.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: obi
+          image: {{ .Values.ebpf.image }}
+          securityContext:
+            privileged: true              # loads eBPF programs into the node's kernel
+          env:
+            - name: OTEL_EBPF_CONFIG_PATH
+              value: /config/obi.yaml
+          resources: {{- toYaml .Values.ebpf.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: tracefs, mountPath: /sys/kernel/tracing }
+            - { name: bpffs, mountPath: /sys/fs/bpf }
+            {{- if .Values.ebpf.contextPropagation }}
+            - { name: cgroup, mountPath: /sys/fs/cgroup }
+            {{- end }}
+      volumes:
+        - { name: config, configMap: { name: {{ $name }} } }
+        - { name: tracefs, hostPath: { path: /sys/kernel/tracing, type: Directory } }
+        - { name: bpffs, hostPath: { path: /sys/fs/bpf, type: DirectoryOrCreate } }
+        {{- if .Values.ebpf.contextPropagation }}
+        - { name: cgroup, hostPath: { path: /sys/fs/cgroup, type: Directory } }
+        {{- end }}
+{{- end }}

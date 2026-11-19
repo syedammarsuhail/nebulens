@@ -118,14 +118,26 @@ and cluster metrics, and the **Kubernetes** page fills, without changing any app
 
 **Your applications' traces:**
 
-- **No code changes (Kubernetes):** enable the OpenTelemetry Operator once, then switch tracing on per workload:
+- **Every app, no code changes, no restarts (Kubernetes, eBPF):** one switch traces every application in every namespace
+  from the Linux kernel: HTTP, gRPC, SQL, Redis, Kafka and more, for Java, .NET, Go, Python, Node.js, Ruby and Rust.
+  Calls between services are joined into one trace, so the service map fills by itself.
 
   ```bash
-  helm upgrade nebulens ./helm/nebulens -n observability --reuse-values --set opentelemetry-operator.enabled=true --wait --timeout 5m
+  helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values --set ebpf.enabled=true
+  ```
+
+  Running pods are picked up within seconds. Needs Linux 5.8+ (RHEL 8 works) and runs one privileged agent per node.
+  NebuLens' own namespace is never traced; skip others with `--set "ebpf.excludeNamespaces={ns1,ns2}"`.
+- **Deeper detail for chosen services (language agent):** for spans inside your code (functions, custom attributes),
+  enable the OpenTelemetry Operator once, then switch it on per workload:
+
+  ```bash
+  helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values --set opentelemetry-operator.enabled=true --wait --timeout 5m
   scripts/instrument.sh java -n my-namespace my-deployment       # also: dotnet, python, nodejs, go
   ```
 
-  The pod restarts once with the language agent attached. Do not enable the Operator if it is already installed in the cluster.
+  The pod restarts once with the language agent attached, and eBPF then skips it. Do not enable the Operator if it is
+  already installed in the cluster.
 - **Apps that already use OpenTelemetry:** point their OTLP exporter at the collector,
   `http://nebulens-collector.observability.svc.cluster.local:4319` (inside the cluster), or straight at NebuLens on port 4318 with the
   header `Authorization: Bearer <token>`.

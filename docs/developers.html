@@ -156,7 +156,7 @@ NEBULENS_URL=<span class="s">http://localhost:4318</span> python demo/multi_serv
       <button role="tab" aria-selected="false" aria-controls="l-node" id="tl-node">node.js</button>
       <button role="tab" aria-selected="false" aria-controls="l-java" id="tl-java">java</button>
       <button role="tab" aria-selected="false" aria-controls="l-go" id="tl-go">go</button>
-      <button role="tab" aria-selected="false" aria-controls="l-k8s" id="tl-k8s">kubernetes (no code)</button>
+      <button role="tab" aria-selected="false" aria-controls="l-k8s" id="tl-k8s">kubernetes (no code, no restart)</button>
     </div>
     <div class="panel" role="tabpanel" id="l-py" aria-labelledby="tl-py"><button class="copy" type="button">copy</button><pre>pip install opentelemetry-distro opentelemetry-exporter-otlp
 opentelemetry-bootstrap -a install
@@ -182,15 +182,18 @@ otel.SetTracerProvider(tp)
 
 <span class="c">// run with</span>
 <span class="k">OTEL_SERVICE_NAME</span>=<span class="s">pricing</span> <span class="k">OTEL_EXPORTER_OTLP_ENDPOINT</span>=<span class="s">http://nebulens:4318</span> ./pricing</pre></div>
-    <div class="panel" role="tabpanel" id="l-k8s" aria-labelledby="tl-k8s" hidden><button class="copy" type="button">copy</button><pre><span class="c"># install the OpenTelemetry Operator together with NebuLens (skip if your cluster already has one)</span>
-helm upgrade nebulens ./helm/nebulens -n observability --reuse-values \
+    <div class="panel" role="tabpanel" id="l-k8s" aria-labelledby="tl-k8s" hidden><button class="copy" type="button">copy</button><pre><span class="c"># every app in every namespace, no code and no restart (eBPF, one agent per node)</span>
+helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values --set ebpf.enabled=true
+
+<span class="c"># optional: deeper spans inside your code for chosen services (OpenTelemetry Operator + agent)</span>
+helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values \
   --set opentelemetry-operator.enabled=true --wait --timeout 5m
 
 <span class="c"># switch tracing on for a workload: the pod restarts with the language agent injected</span>
 scripts/instrument.sh <span class="s">python</span> -n shop checkout     <span class="c"># java, dotnet, nodejs, go</span>
 
 <span class="c"># or let NebuLens annotate whole namespaces every 10 minutes (it detects the language)</span>
-helm upgrade nebulens ./helm/nebulens -n observability --reuse-values \
+helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values \
   --set autoInstrumentation.autoInject.enabled=true --set autoInstrumentation.autoInject.dryRun=false \
   --set "autoInstrumentation.autoInject.namespaces={shop}"</pre></div>
   </div>

@@ -61,6 +61,8 @@ helm lint helm/nebulens --set auth.token=release-check-token-0123456789abcdef >/
 for f in helm/nebulens/values-*.yaml; do
   helm template nebulens helm/nebulens -n observability -f "$f" --set auth.token=release-check-token-0123456789abcdef >/dev/null || fail "helm template $f"
 done
+helm template nebulens helm/nebulens -n observability --set auth.token=release-check-token-0123456789abcdef --set ebpf.enabled=true \
+  >/dev/null || fail "helm template with ebpf.enabled"
 echo "chart lints and every overlay renders"
 
 step "7/7 ui"

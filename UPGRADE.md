@@ -1,3 +1,12 @@
+> **Chart 0.4.2** — **Tracing for every app with no code changes and no restarts (eBPF).** Same image (`nebulens_11_1`).
+> - New `ebpf.enabled=true`: one OpenTelemetry eBPF Instrumentation (OBI v1.0) agent per node traces every application in every
+>   namespace from the Linux kernel (HTTP, gRPC, SQL, Redis, Kafka and more; Java, .NET, Go, Python, Node.js, Ruby, Rust). Running pods
+>   are picked up within seconds, calls between services are joined into one trace, and spans go through the NebuLens collector.
+>   NebuLens' own namespace is never traced. Needs Linux 5.8+ (RHEL 8 works) and a privileged DaemonSet.
+>   Turn on with `helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values --set ebpf.enabled=true`.
+> - Tested on EKS: apps with no OpenTelemetry code were traced across three services within a minute, without restarting them.
+> - `scripts/eks.sh` creates the gp3 StorageClass that new EKS clusters lack.
+>
 > **v11.1** — **Pulse0 is now NebuLens.** Image tag `nebulens_11_1`, chart `nebulens` `0.4.1` (includes v10.23 and earlier below).
 > v11.0 was published briefly under the name Oscilyx; v11.1 replaces it. Everything below that keeps Pulse0 installs working
 > applies to Oscilyx installs too (`OSCILYX_*` settings, `oscilyx.db`, the `oscilyx` Postgres schema, `x-oscilyx-*` headers and

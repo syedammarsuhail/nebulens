@@ -268,6 +268,23 @@ autoInstrumentation:
     overrides: {}               # explicit language: {"application/c2m-api": dotnet}
     # image: ""                 # defaults to the NebuLens image (needs python3). Mirror it for air-gapped sites.
 
+# Zero-restart tracing for every app in every namespace, with OpenTelemetry eBPF Instrumentation (OBI).
+# One privileged agent per node watches application processes from the Linux kernel: HTTP, gRPC, SQL, Redis,
+# Kafka and more, for Java, .NET, Go, Python, Node.js, Ruby, Rust and C/C++, with no code change and no restart.
+# Spans go through the NebuLens collector (needs collector.enabled). NebuLens' own namespace is never traced.
+# Needs Linux 5.8+ with BTF (RHEL 8.x 4.18 works), amd64 or arm64. Apps that already send OpenTelemetry are skipped.
+# For spans inside your code (functions, custom attributes) use autoInstrumentation / an SDK as well.
+ebpf:
+  enabled: false
+  image: otel/ebpf-instrument:v1.0.0
+  contextPropagation: true    # join calls between services into one trace (uses hostNetwork)
+  samplingRatio: "1.0"        # 1.0 = every request; e.g. "0.2" on very busy clusters
+  excludeNamespaces: []       # also skip these, e.g. [kube-system, istio-system]
+  tolerations: []             # e.g. [{operator: Exists}] to run on tainted nodes too
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
 # One-command zero-code tracing: install the OpenTelemetry Operator together with NebuLens.
 # Do NOT enable this if the Operator is already installed on the cluster (two copies conflict).
 # First install: add --wait --timeout 5m so the Operator is ready before the Instrumentation
