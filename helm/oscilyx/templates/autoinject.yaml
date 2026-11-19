@@ -1,0 +1,84 @@
+{{- $ai := .Values.autoInstrumentation.autoInject | default dict -}}
+{{- if and .Values.autoInstrumentation.enabled $ai.enabled -}}
+{{- $fn := printf "%s-autoinject" (include "oscilyx.fullname" .) -}}
+# Auto-injection: a CronJob that annotates workloads in the listed namespaces so the OpenTelemetry
+# Operator injects the right language agent. Needs the Instrumentation CR (templates/instrumentation.yaml)
+# and the Operator. Starts in dryRun mode: read the Job logs first, then set dryRun=false.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fn }}
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+{{- range $ai.namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fn }}
+  namespace: {{ . }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fn }}
+  namespace: {{ . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fn }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fn }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fn }}
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+data:
+  autoinject.py: |-
+{{ .Files.Get "files/autoinject.py" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fn }}
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $ai.schedule | default "*/10 * * * *" | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: {{ $fn }}
+          restartPolicy: Never
+          containers:
+            - name: autoinject
+              image: {{ $ai.image | default (printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion | toString)) | quote }}
+              command: ["python3", "/scripts/autoinject.py"]
+              env:
+                - name: AUTOINJECT_CONFIG
+                  value: {{ dict "namespaces" $ai.namespaces "kinds" ($ai.kinds | default (list "deployments" "statefulsets")) "dryRun" (ternary $ai.dryRun true (hasKey $ai "dryRun")) "maxChangesPerRun" ($ai.maxChangesPerRun | default 3) "instrumentation" (printf "%s/oscilyx" .Release.Namespace) "overrides" ($ai.overrides | default dict) "exclude" ($ai.exclude | default list) | toJson | quote }}
+              securityContext:
+                allowPrivilegeEscalation: false
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {memory: 128Mi}
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+          volumes:
+            - name: script
+              configMap:
+                name: {{ $fn }}
+{{- end }}

@@ -1,0 +1,19 @@
+apiVersion: v2
+name: oscilyx
+description: Oscilyx - OpenTelemetry-native personal observability platform
+type: application
+version: 0.4.0
+appVersion: "11_0"
+keywords: [observability, opentelemetry, tracing, logs, metrics, apm]
+home: https://github.com/syedammarsuhail/oscilyx
+maintainers:
+  - name: Ammar Suhail
+    email: ammarsuhail155@gmail.com
+dependencies:
+  # Optional: installs the OpenTelemetry Operator together with Oscilyx, so tracing can be switched
+  # on per workload with one annotation (see scripts/instrument.sh). Off by default because the
+  # Operator is cluster-wide. Enable with: --set opentelemetry-operator.enabled=true
+  - name: opentelemetry-operator
+    version: "0.129.0"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    condition: opentelemetry-operator.enabled

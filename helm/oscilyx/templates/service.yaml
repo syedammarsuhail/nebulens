@@ -1,0 +1,15 @@
+{{- if include "oscilyx.serverEnabled" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "oscilyx.fullname" . }}
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector: {{- include "oscilyx.selectorLabels" . | nindent 4 }}
+{{- end }}

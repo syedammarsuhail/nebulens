@@ -1,0 +1,82 @@
+# Oscilyx on Azure Kubernetes Service (AKS)
+#
+#   az acr login --name <registry>
+#   docker tag oscilyx:0.1.0 <registry>.azurecr.io/oscilyx:0.1.0 && docker push <registry>.azurecr.io/oscilyx:0.1.0
+#   az aks update -n <cluster> -g <rg> --attach-acr <registry>        # lets AKS pull without a secret
+#   helm upgrade --install oscilyx ./helm/oscilyx -n observability --create-namespace \
+#     -f helm/oscilyx/values-aks.yaml --set auth.token=<CHOOSE_A_TOKEN>
+
+image:
+  repository: <registry>.azurecr.io/oscilyx     # push to ACR; attach ACR to AKS
+  tag: "0.1.0"
+
+# STORAGE — check what the cluster offers:  kubectl get storageclass
+#   managed-csi            : Standard SSD, cheapest that is still sensible
+#   managed-csi-premium    : Premium SSD, the right default for production
+#   azurefile-csi-premium  : ReadWriteMany, only needed if you run >1 replica on shared storage
+# Azure Disks are zone-bound: a pod can only restart in the zone holding its disk. For a
+# zone-redundant install use ZRS (create a StorageClass with skuName: Premium_ZRS) or Azure Files.
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: managed-csi-premium
+  accessMode: ReadWriteOnce
+
+service:
+  type: ClusterIP
+
+# EXPOSE THE UI — three options, pick one.
+# A) Ingress (shown below). B) Internal-only load balancer, no public IP:
+#      service.type=LoadBalancer with annotation
+#      service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+# C) Application Gateway Ingress Controller: className: azure-application-gateway
+ingress:
+  enabled: true
+  className: nginx             # or webapprouting.kubernetes.azure.com with the AKS managed add-on
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt   # if using cert-manager
+    # Keep Oscilyx off the public internet (recommended):
+    # service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+  hosts:
+    - host: oscilyx.internal.yourcompany.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls:
+    - hosts: [oscilyx.internal.yourcompany.com]
+      secretName: oscilyx-tls
+
+# SECRETS — do not leave a token in this file for production. Two Azure-native options:
+#   1. Key Vault + the Secrets Store CSI driver (az aks enable-addons --addons azure-keyvault-secrets-provider),
+#      which syncs a Kubernetes Secret named oscilyx-auth with key "token".
+#   2. Workload Identity, if you fetch secrets in your own init container.
+# Either way, create the Secret out of band and leave auth.token empty.
+auth:
+  # Create the Secret yourself (Key Vault CSI, External Secrets, Sealed Secrets) with keys
+  # "token" and optionally "ingestToken", then name it here. Nothing sensitive lives in git.
+  existingSecret: oscilyx-auth
+  # Alternatively, for a quick evaluation only:
+  #   --set auth.existingSecret="" --set auth.token=<CHOOSE_A_TOKEN>
+
+# SSO with Microsoft Entra ID (formerly Azure AD). Create an app registration, add the redirect URI
+# https://<your-host>/auth/callback, and add the "groups" claim to the ID token. Then set these as
+# environment variables or --set values (never commit the client secret):
+#   OSCILYX_OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+#   OSCILYX_OIDC_CLIENT_ID / OSCILYX_OIDC_CLIENT_SECRET
+#   OSCILYX_OIDC_ROLE_CLAIM=groups
+#   OSCILYX_OIDC_ADMIN_GROUPS=<entra-group-object-id>
+# Entra sends group object IDs, not names, so use the GUIDs.
+env:
+  OSCILYX_RETENTION_HOURS: "168"
+  OSCILYX_TRUST_PROXY: "1"            # behind an ingress: record the real client IP in the audit log
+  OSCILYX_AUDIT_RETENTION_DAYS: "365"
+
+collector:
+  enabled: true
+  resources:
+    limits: { cpu: 500m, memory: 512Mi }
+    requests: { cpu: 100m, memory: 128Mi }
+
+# Zero-code tracing for AKS workloads (installs the OpenTelemetry Operator alongside Oscilyx).
+# Skip if the Operator is already on the cluster.
+opentelemetry-operator:
+  enabled: false

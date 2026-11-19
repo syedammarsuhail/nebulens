@@ -1,0 +1,40 @@
+# Oscilyx on a single Linux VM: server + a host-level OpenTelemetry Collector.
+#   cp .env.example .env     # set OSCILYX_TOKEN (and OSCILYX_IMAGE if you use a private registry)
+#   docker compose up -d
+# UI and OTLP/HTTP: http://<vm-ip>:4318   Apps can also send to the collector on :4317 (gRPC) / :4319 (HTTP).
+services:
+  oscilyx:
+    image: ${OSCILYX_IMAGE:-oscilyx:0.1.0}
+    restart: unless-stopped
+    ports:
+      - "4318:4318"
+    environment:
+      OSCILYX_TOKEN: ${OSCILYX_TOKEN:?set OSCILYX_TOKEN in .env}
+      OSCILYX_RETENTION_HOURS: ${OSCILYX_RETENTION_HOURS:-72}
+      OSCILYX_DB: /data/oscilyx.db
+    volumes:
+      - oscilyx-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4318/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      OSCILYX_TOKEN: ${OSCILYX_TOKEN}
+    ports:
+      - "4317:4317"
+      - "4319:4319"
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol/config.yaml:ro
+      - /:/hostfs:ro
+    depends_on:
+      oscilyx:
+        condition: service_healthy
+
+volumes:
+  oscilyx-data:

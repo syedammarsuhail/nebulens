@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Oscilyx - Observability</title>
+<script>try{var t=localStorage.getItem("p0.theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231593b0'/%3E%3Cstop offset='1' stop-color='%2322b5d3'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='24' height='24' rx='6' fill='url(%23g)'/%3E%3Cpolyline points='2,13%206.5,13%208.5,9.5%2011,18%2013.5,4.5%2015.5,13%2022,13' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"/>
+<link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+<header id="top">
+  <a class="brand" href="#/home" title="Oscilyx home"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="2,13 6.5,13 8.5,9.5 11,18 13.5,4.5 15.5,13 22,13"/></svg></span><b>Oscilyx</b></a>
+  <button id="search-btn" class="search" title="Search (Ctrl+K)">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <span>Search services, traces, metrics, pages…</span><kbd>Ctrl K</kbd>
+  </button>
+  <div class="top-right">
+    <button id="ask-btn" class="btn accent" title="Ask Oscilyx (rule-based investigation)">
+      <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+      Ask Oscilyx
+    </button>
+    <div id="range-wrap" class="menu-wrap">
+      <button id="range-btn" class="btn" title="Time range"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="range-label">Last 1 hour</span><i class="caret"></i></button>
+    </div>
+    <button id="refresh" class="btn icon" title="Refresh now"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+    <label class="switch" title="Auto-refresh every 15s"><input type="checkbox" id="auto" checked/><span></span><em>Auto</em></label>
+    <button id="whoami" class="btn" hidden title="Signed in"></button>
+    <button id="theme" class="btn icon" title="Toggle light / dark theme"><svg viewBox="0 0 24 24"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg></button>
+    <div class="live" id="live" title="Connection to Oscilyx"><span class="dot"></span><span id="status">connecting</span></div>
+  </div>
+</header>
+
+<div id="shell">
+  <nav id="rail" aria-label="Main navigation"></nav>
+  <section id="content">
+    <div id="crumbs"></div>
+    <main id="main" tabindex="-1"></main>
+  </section>
+</div>
+
+<div id="scrim" class="scrim"></div>
+<aside id="drawer" class="drawer" aria-hidden="true"></aside>
+<aside id="ask" class="drawer ask" aria-hidden="true"></aside>
+<div id="palette" class="palette" hidden></div>
+<div id="modal-root"></div>
+<div id="toasts"></div>
+
+<script src="/static/core.js"></script>
+<script src="/static/views.js"></script>
+<script src="/static/views2.js"></script>
+<script src="/static/mapkit.js"></script>
+<script src="/static/map.js"></script>
+<script src="/static/assistant.js"></script>
+<script src="/static/tenancy.js"></script>
+<script src="/static/clusters.js"></script>
+<script>Oscilyx.start()</script>
+</body>
+</html>

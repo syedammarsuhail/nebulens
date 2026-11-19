@@ -1,0 +1,92 @@
+# Security gate: nothing is published unless every scan passes.
+#   gate   scripts/release-check.sh: tests, pip-audit, bandit, secrets, paid-code check, helm, UI syntax
+#   snyk   Snyk Open Source (dependencies) and Snyk Code (source), blocking at high severity
+#   sonar  SonarCloud analysis, waiting for the quality gate (blocking)
+#   image  builds the image and publishes it to GHCR, only on a version tag and only after all three passed
+#
+# One-time setup (repository Settings -> Secrets and variables -> Actions):
+#   SNYK_TOKEN         from https://app.snyk.io/account
+#   SONAR_TOKEN        from SonarCloud (My Account -> Security)
+#   SONAR_ORGANIZATION and SONAR_PROJECT_KEY as repository *variables* (the SonarCloud organization and project key)
+# Without them the snyk / sonar jobs fail on purpose: an unscanned build must not be published.
+name: Security gate
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - uses: azure/setup-helm@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: pip install -r requirements.lock -r requirements-dev.txt
+      - run: bash scripts/release-check.sh
+
+  snyk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.lock
+      - name: Snyk Open Source (dependencies)
+        uses: snyk/actions/python-3.10@master
+        env: { SNYK_TOKEN: "${{ secrets.SNYK_TOKEN }}" }
+        with: { args: --file=requirements.lock --package-manager=pip --severity-threshold=high }
+      - name: Snyk Code (source)
+        uses: snyk/actions/python-3.10@master
+        env: { SNYK_TOKEN: "${{ secrets.SNYK_TOKEN }}" }
+        with: { command: code test, args: --severity-threshold=high }
+
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.lock -r requirements-dev.txt pytest-cov
+      - run: OSCILYX_CACHE_TTL=0 python -m pytest tests -q --cov=. --cov-report=xml:coverage.xml
+      - name: SonarCloud scan (waits for the quality gate)
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=server.py,integrations.py,static/,scripts/
+            -Dsonar.tests=tests/
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.python.version=3.12
+            -Dsonar.qualitygate.wait=true
+
+  image:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [gate, snyk, sonar]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - name: Build and push
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME#v}
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"

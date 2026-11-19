@@ -1,0 +1,70 @@
+# Runs on every push and pull request. The same API suite runs against SQLite AND Postgres, which is how
+# SQL that only one database accepts gets caught before release.
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+
+jobs:
+  test-sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  test-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+        env:
+          OSCILYX_TEST_PG_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: lint and render every platform values file
+        run: |
+          helm lint helm/oscilyx --set auth.token=x
+          for f in helm/oscilyx/values*.yaml; do
+            helm template oscilyx helm/oscilyx -n test -f "$f" --set auth.token=x > /dev/null
+            echo "rendered $f"
+          done
+          helm template oscilyx helm/oscilyx --set auth.token=x --set opentelemetry-operator.enabled=true > /dev/null
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: for f in static/*.js; do node --check "$f"; done
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build, then check it starts as a non-root user and reports healthy
+        run: |
+          docker build -t oscilyx:ci .
+          test "$(docker run --rm --entrypoint id oscilyx:ci -u)" = "1000"
+          docker run -d --name p -e OSCILYX_TOKEN=tok oscilyx:ci
+          for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' p)" = healthy ] && exit 0; sleep 2; done
+          docker logs p; exit 1

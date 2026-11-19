@@ -1,0 +1,298 @@
+# Default values for oscilyx.
+
+image:
+  repository: oscilyx
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Private registry? Create the secret first:
+#   kubectl -n observability create secret docker-registry regcred --docker-server=<registry> --docker-username=<u> --docker-password=<p>
+# then: --set imagePullSecrets[0].name=regcred
+imagePullSecrets: []
+
+# With the default SQLite storage this must stay 1: every replica would own a separate database.
+# For high availability set postgres.enabled=true, persistence.enabled=false and raise this; the
+# chart refuses the combination of >1 replica and SQLite rather than silently splitting your data.
+# The Oscilyx server (console, API, database). Set enabled: false for an AGENT-ONLY install: a cluster that only
+# runs the collector and sends its telemetry to a Oscilyx console in another cluster (see values-agent.yaml and
+# collector.remote below). Leave it true on the cluster that hosts the console.
+server:
+  enabled: true
+
+replicaCount: 1
+
+# High availability (requires postgres.enabled). Spreads replicas across nodes and keeps a minimum
+# available during drains and upgrades.
+highAvailability:
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  # soft: prefer different nodes; hard: require them (needs at least replicaCount nodes)
+  antiAffinity: soft
+  topologySpreadZones: false   # also spread across topology.kubernetes.io/zone
+
+service:
+  type: ClusterIP
+  port: 4318
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: oscilyx.example.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls: []
+
+persistence:
+  enabled: true      # disable when using an external database (postgres.enabled)
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+
+# External Postgres database (Supabase, RDS, etc.). When enabled, all telemetry and metadata go to
+# Postgres instead of local SQLite. Disable persistence above to skip the PVC entirely.
+postgres:
+  enabled: false
+  # Existing Secret holding the full connection string in the named key:
+  #   kubectl -n observability create secret generic oscilyx-db \
+  #     --from-literal=database-url='postgresql://user:pass@host:5432/db?sslmode=require'
+  existingSecret: ""
+  secretKey: database-url
+  schema: ""           # Postgres schema for all Oscilyx tables (created automatically). Empty: "oscilyx", or "pulse0" on a database Pulse0 filled
+
+auth:
+  # Optional bearer token enforced on /v1/* and /api/*.
+  # Leave empty to disable auth (dev/internal only).
+  token: ""
+  # Optional separate token that may ONLY write telemetry (/v1/*). Recommended once SSO is on, so apps and
+  # collectors never hold an admin credential. When empty, OSCILYX_TOKEN (auth.token) is also the ingest token.
+  ingestToken: ""
+  # Use a Secret you manage yourself instead of putting tokens in values (Azure Key Vault CSI,
+  # AWS Secrets Store CSI, Sealed Secrets, External Secrets...). It must contain the keys below.
+  # When set, auth.token / auth.ingestToken are ignored and no Secret is created by this chart.
+  existingSecret: ""
+  existingSecretTokenKey: token
+  existingSecretIngestKey: ingestToken
+  # Single sign-on with any OpenID Connect provider (Okta, Entra ID, Google, Keycloak, ADFS, Dex, ...), self-hosted mode only.
+  # Create a confidential client whose redirect URI is <redirectUrl>, then store its secrets in an existing Secret:
+  #   kubectl -n observability create secret generic oscilyx-oidc \
+  #     --from-literal=clientSecret=<CLIENT_SECRET> --from-literal=sessionSecret=$(openssl rand -hex 32)
+  oidc:
+    enabled: false
+    issuer: ""                 # e.g. https://login.example.com/realms/acme  (must serve /.well-known/openid-configuration)
+    clientId: ""
+    existingSecret: ""         # Secret holding keys clientSecret and sessionSecret
+    redirectUrl: ""            # public URL ending in /auth/callback; set it whenever TLS is terminated before Oscilyx
+    scopes: "openid email profile"
+    roleClaim: groups          # token claim holding the user's groups; dotted paths work (realm_access.roles)
+    adminGroups: []            # members get the admin role (highest match wins)
+    editorGroups: []
+    viewerGroups: []
+    defaultRole: viewer        # role for signed-in users in none of the groups above; "none" denies them
+    allowedDomains: []         # optional email-domain allow-list, e.g. [example.com]
+    sessionTtlHours: 12
+    providerName: SSO          # label on the sign-in button
+
+# Deployment mode.
+#   selfhosted (default): classic single-tenant Oscilyx. One SQLite database on the PVC; your data stays in
+#                         your own cluster. Optional bearer token via auth.token.
+#   hosted:               Pulse-hosted multi-tenant service. Organizations -> projects (one SQLite file each
+#                         under hosted.dataDir) -> hashed API keys, per-org daily ingest caps and retention.
+#                         auth.token is ignored; the platform operator uses the admin token below.
+# Hosted mode stores every tenant on the PVC: size persistence.size for the sum of all projects
+# (roughly 0.3-1 GB per million spans at default retention) and keep replicaCount at 1.
+mode: selfhosted
+hosted:
+  # REQUIRED when mode=hosted. Existing Secret that holds the platform admin token (never put it in values):
+  #   kubectl -n observability create secret generic oscilyx-admin --from-literal=admin-token=$(openssl rand -hex 32)
+  adminTokenSecret: ""
+  adminTokenKey: admin-token
+  dataDir: /data/tenants
+  # REQUIRED when mode=hosted and collector.enabled: Secret with an ingest key of the operator's own project,
+  # used by the bundled collector to ship cluster telemetry (create the key with POST /admin/orgs/<id>/keys):
+  #   kubectl -n observability create secret generic oscilyx-collector-key --from-literal=ingest-key=<p0i_...>
+  collectorKeySecret: ""
+  collectorKeyKey: ingest-key
+  # Off by default: hosted mode never forwards tenant data to Anthropic unless you opt in here AND enable ai.*.
+  allowAI: false
+
+# 'Ask Oscilyx' AI assistant with the model you choose (the rule-based assistant always works without this).
+#   provider: anthropic  -> Claude
+#   provider: openai     -> any OpenAI-compatible chat-completions endpoint: OpenAI, Azure OpenAI, Groq, Mistral, OpenRouter,
+#                           or a self-hosted model (Ollama, vLLM, LM Studio) so nothing leaves your network. Needs baseUrl + model.
+# The API key is NEVER stored in values/files. Create the secret yourself (not needed for a local model without a key):
+#   kubectl -n observability create secret generic oscilyx-ai --from-literal=api-key=<YOUR_KEY>
+#   kubectl -n observability rollout restart statefulset/oscilyx
+# The model must support tool (function) calling.
+ai:
+  enabled: false
+  provider: anthropic   # anthropic | openai
+  baseUrl: ""           # openai provider only, e.g. https://api.openai.com/v1 or http://ollama.ollama:11434/v1
+  model: ""             # empty = claude-sonnet-5-5 for anthropic; required for openai
+  name: ""              # shown in the UI, e.g. "Llama 3.1"; empty = Claude / OpenAI / AI model
+  keyHeader: ""         # e.g. "api-key" for Azure OpenAI; empty = Authorization: Bearer
+  existingSecret: oscilyx-anthropic
+  secretKey: api-key
+
+resources:
+  limits:   { cpu: 1000m, memory: 2Gi }
+  requests: { cpu: 250m,  memory: 1Gi }
+
+env:
+  OSCILYX_RETENTION_HOURS: "72"
+  # Lowest log severity stored: 0 = everything, 9 = INFO and up, 13 = WARN and up, 17 = errors only.
+  # Enforced inside Oscilyx after the level is read from the log text, so it also catches Java/.NET container
+  # logs that reach Oscilyx with no severity (the collector cannot filter those).
+  OSCILYX_MIN_LOG_SEVERITY: "0"
+  # With MIN_LOG_SEVERITY > 0: "drop" discards records whose level cannot be determined, "keep" stores them.
+  OSCILYX_LOG_UNKNOWN_SEVERITY: "drop"
+  # Names the environment this cluster rolls up to on the Environments page. Without it (and without
+  # k8s.cluster.name or deployment.environment in telemetry) every namespace shows under one "default"
+  # environment. Set this to your cluster's name, e.g. "staging-baremetal".
+  OSCILYX_CLUSTER_NAME: ""
+  # Keep metrics for less time than logs and traces (they are the largest table). 0 or empty = same as
+  # OSCILYX_RETENTION_HOURS. On a busy cluster 24 keeps the database small and the pages fast.
+  OSCILYX_METRICS_RETENTION_HOURS: ""
+  # Seconds the heavy dashboard aggregates (home, services, map, insights) are cached; a background warmer keeps them fresh.
+  OSCILYX_CACHE_TTL: "45"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities: { drop: [ALL] }
+
+# Bundled OpenTelemetry Collector that forwards cluster signals to Oscilyx.
+# Enable it to get full K8s observability with a single `helm install`.
+collector:
+  enabled: true
+  image: otel/opentelemetry-collector-contrib:0.111.0
+  # The log collector reads /var/log/pods from the host, which needs a relaxed security context.
+  # OpenShift additionally requires an SCC (see openshift.scc below and values-openshift.yaml).
+  # How often node, kubelet and Prometheus metrics are scraped. Each scrape writes hundreds of rows per node,
+  # so this is the biggest lever on database size. 60s is plenty for dashboards and alerts; 30s doubles it.
+  metricsInterval: "60s"
+  # Container logs: which namespaces the collector reads. Empty = every namespace on the node (kube-system,
+  # operators, the observability stack itself...). Listing only your application namespaces removes that noise
+  # at the source, before it is parsed or sent.
+  logs:
+    namespaces: []          # e.g. [application]
+    # Collector-side minimum severity for records that already carry one (9 = INFO and up, 13 = WARN, 17 = errors
+    # only). 0 = keep everything. Container logs usually carry no severity, so also set the server-side guard
+    # env.OSCILYX_MIN_LOG_SEVERITY, which reads the level from the log text.
+    minSeverity: 0
+  # Name of THIS cluster, stamped on all its telemetry as k8s.cluster.name. Defaults to env.OSCILYX_CLUSTER_NAME.
+  # A registered cluster token (below) also makes the console assign the cluster on the server side.
+  clusterName: ""
+  # Host CPU and memory as a percentage (system.cpu.utilization, system.memory.utilization). The collector leaves these off
+  # by default; the host gauges in the UI need them. Set false to save two series per node.
+  hostUtilization: true
+  # Kubelet metrics to collect in addition to the collector's defaults (which already include CPU time, memory usage,
+  # working set and node/pod CPU utilisation). The defaults below feed the Kubernetes dashboards. More that exist in
+  # collector 0.111.0: container.cpu.usage, k8s.node.cpu.usage, k8s.container.cpu_request_utilization,
+  # k8s.container.memory_request_utilization, k8s.pod.cpu_limit_utilization, k8s.pod.memory_limit_utilization,
+  # container.uptime, k8s.pod.uptime, k8s.node.uptime. A name the collector does not know stops it from starting.
+  kubeletMetrics:
+    - k8s.pod.cpu.usage
+    - k8s.container.cpu_limit_utilization
+    - k8s.container.memory_limit_utilization
+  # Send this cluster's telemetry to a Oscilyx console in ANOTHER cluster instead of the in-cluster server.
+  # In the console, open Clusters -> Add cluster to get the endpoint and the token for this cluster.
+  remote:
+    endpoint: ""            # e.g. https://oscilyx.example.com   or   http://10.0.4.81:32721
+    tokenSecret: ""         # name of an existing Secret that holds the cluster token (recommended) ...
+    tokenSecretKey: token   # ... under this key
+    token: ""               # or the token itself (the chart then creates the Secret; avoid committing it)
+    insecureSkipVerify: false   # true only for a self-signed HTTPS console
+  # Host metrics scrapers. Each adds rows on every node at every interval; disk (4 metrics per device) and
+  # network are the heaviest. Drop what you do not chart, e.g. [cpu, memory, filesystem, load].
+  hostScrapers: [cpu, memory, disk, filesystem, network, load]
+  metrics:
+    # Keep pod/container metrics only for these namespaces (kubelet, Prometheus pods, cluster receiver).
+    # Node and host metrics are always kept. Empty = every namespace.
+    namespaces: []          # e.g. [application]
+  podSecurityContext: {}
+  securityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  # Cluster-wide Kubernetes metrics, collected by ONE pod (not once per node).
+  clusterMetrics:
+    enabled: true
+  # Collects: k8s metrics, host metrics, container logs, Prometheus pod
+  # endpoints (auto-discovered via prometheus.io/* annotations), and forwards
+  # OTLP from applications to Oscilyx.
+  resources:
+    limits:   { cpu: 500m, memory: 512Mi }
+    requests: { cpu: 50m,  memory: 128Mi }
+  # SignalControl Edge: % of successful traces to keep (errors + slow are
+  # always kept). Lower this in high-traffic environments to cut storage.
+  # NOTE: values below 100 skew the stored error rate, because every errored/slow trace
+  # is kept but only this % of healthy traces. Keep 100 for accurate RED numbers.
+  traceSamplingPercent: 100
+
+# Create ServiceMonitor for Prometheus Operator
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+# Zero-code-change auto-instrumentation via the OpenTelemetry Operator.
+# After installing the Operator once (cluster-wide), you add one annotation
+# to any Deployment and its language agent is injected automatically.
+# Supported: Python, Java, Node.js, .NET, Go, Apache HTTPD, nginx, browser.
+autoInstrumentation:
+  enabled: true
+  samplingRatio: "1.0"   # 1.0 = capture everything; lower for high-traffic prod
+  autoInject:
+    enabled: false              # turn on together with opentelemetry-operator.enabled=true
+    dryRun: true                # true: only log what would change. Set false once the log looks right.
+    schedule: "*/10 * * * *"
+    namespaces: []              # e.g. [application]
+    maxChangesPerRun: 3         # staggers rolling restarts across runs
+    kinds: [deployments, statefulsets]
+    exclude: []                 # workload names or "namespace/name" to never touch
+    overrides: {}               # explicit language: {"application/c2m-api": dotnet}
+    # image: ""                 # defaults to the Oscilyx image (needs python3). Mirror it for air-gapped sites.
+
+# One-command zero-code tracing: install the OpenTelemetry Operator together with Oscilyx.
+# Do NOT enable this if the Operator is already installed on the cluster (two copies conflict).
+# First install: add --wait --timeout 5m so the Operator is ready before the Instrumentation
+# resource above is created.
+opentelemetry-operator:
+  enabled: false
+  admissionWebhooks:
+    certManager:
+      enabled: false        # no cert-manager needed; the chart generates the webhook certificate
+    autoGenerateCert:
+      enabled: true
+
+# OpenShift (OCP / OKD / ROSA / ARO). See values-openshift.yaml for a ready-made values file.
+openshift:
+  # Create a SecurityContextConstraints for the log-collecting DaemonSet and bind it to its
+  # ServiceAccount. Needed because reading /var/log/pods is a hostPath mount, which the default
+  # "restricted-v2" SCC forbids. Requires cluster-admin at install time.
+  scc:
+    enabled: false
+  # Expose the UI with an OpenShift Route instead of an Ingress (leave ingress.enabled=false).
+  route:
+    enabled: false
+    host: ""                  # empty: OpenShift generates <name>-<namespace>.apps.<cluster-domain>
+    tls:
+      enabled: true
+      termination: edge       # edge | reencrypt | passthrough
+      insecureEdgeTerminationPolicy: Redirect
+    annotations: {}

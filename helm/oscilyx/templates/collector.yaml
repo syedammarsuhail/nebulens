@@ -1,0 +1,433 @@
+{{- if .Values.collector.enabled -}}
+{{- $remote := default (dict) .Values.collector.remote -}}
+{{- $remoteAuth := and $remote.endpoint (or $remote.token $remote.tokenSecret) -}}
+{{- $remoteSecret := default (printf "%s-remote" (include "oscilyx.fullname" .)) $remote.tokenSecret -}}
+{{- $remoteKey := default "token" $remote.tokenSecretKey -}}
+{{- $clusterName := default (index (default (dict) .Values.env) "OSCILYX_CLUSTER_NAME") .Values.collector.clusterName -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4319 }
+      hostmetrics:
+        collection_interval: {{ .Values.collector.metricsInterval | default "60s" }}
+        scrapers:
+          {{- $hu := true }}
+          {{- if hasKey .Values.collector "hostUtilization" }}{{- $hu = .Values.collector.hostUtilization }}{{- end }}
+          {{- range (default (list "cpu" "memory" "disk" "filesystem" "network" "load") .Values.collector.hostScrapers) }}
+          {{- if and $hu (eq . "cpu") }}
+          cpu:
+            metrics:
+              system.cpu.utilization: { enabled: true }       # off by default in the collector; the UI's host CPU gauge needs it
+          {{- else if and $hu (eq . "memory") }}
+          memory:
+            metrics:
+              system.memory.utilization: { enabled: true }    # off by default in the collector; the UI's host memory gauge needs it
+          {{- else }}
+          {{ . }}: {}
+          {{- end }}
+          {{- end }}
+      kubeletstats:
+        auth_type: serviceAccount
+        collection_interval: {{ .Values.collector.metricsInterval | default "60s" }}
+        # Node IP, not node name: node names are often not resolvable by cluster DNS (bare metal), which made
+        # every scrape fail with "lookup <node> ... no such host".
+        endpoint: "${env:K8S_NODE_IP}:10250"
+        insecure_skip_verify: true
+        {{- $km := default (list) .Values.collector.kubeletMetrics }}
+        {{- if $km }}
+        # Extra kubelet metrics that the collector leaves off by default (see collector.kubeletMetrics).
+        metrics:
+          {{- range $km }}
+          {{ . }}: { enabled: true }
+          {{- end }}
+        {{- end }}
+      filelog:
+        # Only read logs of the namespaces listed in collector.logs.namespaces (empty = every namespace).
+        # Pod log directories are named <namespace>_<pod>_<uid>.
+        include:
+          {{- $lns := (default (dict) .Values.collector.logs).namespaces }}
+          {{- if $lns }}
+          {{- range $lns }}
+          - /var/log/pods/{{ . }}_*/*/*.log
+          {{- end }}
+          {{- else }}
+          - /var/log/pods/*/*/*.log
+          {{- end }}
+        # Never ingest the collector's own logs (feedback loop and unparseable stack traces).
+        exclude: [ /var/log/pods/*/otelcol/*.log ]
+        start_at: end
+        include_file_path: true
+        operators:
+          - type: container
+            id: container-parser
+            on_error: send_quiet
+          # Join multi-line records (Java/.NET/Python/Node stack traces) into ONE log entry. A line continues
+          # the previous record when it is indented, or is a "Caused by:" / exception-class / traceback line.
+          # Anything else starts a new record, so ordinary single-line logs are never glued together.
+          - type: recombine
+            id: multiline
+            combine_field: body
+            source_identifier: attributes["log.file.path"]
+            is_first_entry: 'body not matches "^(\\s|Caused by: |Suppressed: |Traceback \\(most recent call last\\)|\\.\\.\\. \\d+ (more|common frames omitted)|[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)*(Exception|Error|Throwable)(: |$))"'
+            combine_with: "\n"
+            max_log_size: 1048576
+            force_flush_period: 2s
+      # Prometheus auto-scrape: any pod with the standard annotations
+      #   prometheus.io/scrape: "true"
+      #   prometheus.io/port:   "9090"
+      #   prometheus.io/path:   "/metrics"   (optional, default /metrics)
+      # is scraped automatically — zero config for apps that already expose /metrics.
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: 'kubernetes-pods'
+              scrape_interval: {{ .Values.collector.metricsInterval | default "60s" }}
+              kubernetes_sd_configs: [{ role: pod }]
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+                  action: keep
+                  regex: "true"
+                - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+                  action: replace
+                  target_label: __metrics_path__
+                  regex: (.+)
+                - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+                  action: replace
+                  regex: ([^:]+)(?::\d+)?;(\d+)
+                  replacement: $$1:$$2
+                  target_label: __address__
+                - action: labelmap
+                  regex: __meta_kubernetes_pod_label_(.+)
+                - source_labels: [__meta_kubernetes_namespace]
+                  target_label: k8s_namespace_name
+                - source_labels: [__meta_kubernetes_pod_name]
+                  target_label: k8s_pod_name
+    processors:
+      batch: { timeout: 5s, send_batch_size: 1024 }
+      k8sattributes:
+        auth_type: serviceAccount
+        passthrough: false
+        extract:
+          metadata: [k8s.pod.name, k8s.namespace.name, k8s.deployment.name, k8s.node.name, k8s.container.name]
+      resourcedetection:
+        # eks/aks add k8s.cluster + cloud attributes; ec2/azure add region, instance, etc.
+        # Unmatched detectors are skipped, so this same config is safe on any cloud.
+        detectors: [env, eks, aks, ec2, azure, gcp, system, k8snode]
+        timeout: 5s
+        override: false
+      # Memory guard: if the collector eats >80% of its limit, it refuses new data
+      # until it drains. Prevents OOMKill on bursty traffic.
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 85
+        spike_limit_percentage: 25
+      # ------- SignalControl Edge (local filtering, saves storage) -------
+      # Drop high-volume kube-system health-check noise before it hits Oscilyx.
+      filter/noise:
+        error_mode: ignore
+        logs:
+          log_record:
+            - 'IsMatch(body, "(?i)(health|readiness|liveness) ?check")'
+            {{- $minSev := int (default 0 (default (dict) .Values.collector.logs).minSeverity) }}
+            {{- if gt $minSev 0 }}
+            # Drop records that already carry a severity below the minimum. Records with no severity (plain container
+            # logs) pass through; Oscilyx reads their level from the text and applies OSCILYX_MIN_LOG_SEVERITY.
+            - 'severity_number > 0 and severity_number < {{ $minSev }}'
+            {{- end }}
+            - 'resource.attributes["k8s.namespace.name"] == "kube-system" and severity_number < 9'
+      {{- if $clusterName }}
+      # Name this cluster on every record. A registered cluster token makes Oscilyx do this on the server side as well.
+      resource/cluster:
+        attributes:
+          - { key: k8s.cluster.name, value: {{ $clusterName | quote }}, action: upsert }
+      {{- end }}
+      {{- $mns := (default (dict) .Values.collector.metrics).namespaces }}
+      {{- if $mns }}
+      # Pod and container metrics (kubelet, Prometheus pods) are kept only for the listed namespaces. Node and
+      # host metrics carry no namespace and are always kept.
+      filter/metrics-ns:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'resource.attributes["k8s.namespace.name"] != nil and not IsMatch(resource.attributes["k8s.namespace.name"], "^({{ join "|" $mns }})$")'
+      {{- end }}
+      # Keep every errored trace and 20% of successful ones. Dash0's SignalControl
+      # does the same thing with its tail-sampler. Tune in values.yaml.
+      tail_sampling:
+        decision_wait: 10s
+        policies:
+          - { name: errors, type: status_code, status_code: { status_codes: [ERROR] } }
+          - { name: slow,   type: latency,     latency: { threshold_ms: 1000 } }
+          - { name: sample, type: probabilistic, probabilistic: { sampling_percentage: {{ .Values.collector.traceSamplingPercent | default 20 }} } }
+    exporters:
+      otlphttp/oscilyx:
+        endpoint: {{ if $remote.endpoint }}{{ $remote.endpoint }}{{ else }}http://{{ include "oscilyx.fullname" . }}:{{ .Values.service.port }}{{ end }}
+        {{- if $remote.insecureSkipVerify }}
+        tls: { insecure_skip_verify: true }
+        {{- end }}
+        {{- if $remote.endpoint }}
+        {{- if $remoteAuth }}
+        headers:
+          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+        {{- end }}
+        {{- else if eq .Values.mode "hosted" }}
+        headers:
+          x-oscilyx-key: "${env:OSCILYX_INGEST_KEY}"
+        {{- else if .Values.auth.token }}
+        headers:
+          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+        {{- end }}
+        retry_on_failure: { enabled: true, initial_interval: 1s, max_interval: 30s }
+        sending_queue:   { enabled: true, num_consumers: 4, queue_size: 5000 }
+    service:
+      pipelines:
+        traces:  { receivers: [otlp],
+                   processors: [memory_limiter, k8sattributes, resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}tail_sampling, batch],
+                   exporters: [otlphttp/oscilyx] }
+        metrics: { receivers: [otlp, hostmetrics, kubeletstats, prometheus],
+                   processors: [memory_limiter, {{ if $mns }}filter/metrics-ns, {{ end }}k8sattributes, resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch],
+                   exporters: [otlphttp/oscilyx] }
+        logs:    { receivers: [otlp, filelog],
+                   processors: [memory_limiter, filter/noise, k8sattributes, resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch],
+                   exporters: [otlphttp/oscilyx] }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+rules:
+  - apiGroups: [""]
+    resources: [pods, nodes, nodes/stats, nodes/proxy, nodes/metrics, namespaces, services, endpoints, replicationcontrollers, resourcequotas, events, configmaps]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets, statefulsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  # The k8s_cluster receiver also watches HPAs; without this its cache never syncs and
+  # the collector terminates itself after the 10 minute initial-sync timeout.
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
+  # For Prometheus pod/service scraping discovery
+  - apiGroups: [""]
+    resources: [services/proxy, pods/proxy]
+    verbs: [get, list]
+  - nonResourceURLs: [/metrics]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ include "oscilyx.fullname" . }}-collector }
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "oscilyx.fullname" . }}-collector
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: collector
+      {{- include "oscilyx.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Restart the collector pods whenever their configuration changes. A ConfigMap edit alone does not
+        # restart a pod, so without this a changed scrape interval or pipeline would not take effect until
+        # someone restarted it by hand. Bump the chart version when the config template itself changes.
+        checksum/config: {{ printf "%s|%s|%s" .Chart.Version (toYaml .Values.collector) (toYaml .Values.autoInstrumentation) | sha256sum }}
+      labels:
+        app.kubernetes.io/component: collector
+        {{- include "oscilyx.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "oscilyx.fullname" . }}-collector
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.collector.podSecurityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: otelcol
+          image: {{ .Values.collector.image }}
+          args: ["--config=/etc/otel/config.yaml"]
+          {{- with .Values.collector.securityContext }}
+          securityContext: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: K8S_NODE_NAME
+              valueFrom: { fieldRef: { fieldPath: spec.nodeName } }
+            - name: K8S_NODE_IP
+              valueFrom: { fieldRef: { fieldPath: status.hostIP } }
+            {{- if $remoteAuth }}
+            - name: OSCILYX_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ $remoteSecret }}, key: {{ $remoteKey }} } }
+            {{- else if eq .Values.mode "hosted" }}
+            - name: OSCILYX_INGEST_KEY
+              valueFrom: { secretKeyRef: { name: {{ required "hosted.collectorKeySecret is required when mode=hosted and collector.enabled=true (or set collector.enabled=false)" .Values.hosted.collectorKeySecret }}, key: {{ .Values.hosted.collectorKeyKey }} } }
+            {{- else if .Values.auth.existingSecret }}
+            - name: OSCILYX_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ .Values.auth.existingSecret }}, key: {{ .Values.auth.existingSecretTokenKey }} } }
+            {{- else if .Values.auth.token }}
+            - name: OSCILYX_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ include "oscilyx.fullname" . }}-auth, key: token } }
+            {{- end }}
+          ports:
+            - { name: otlp-grpc, containerPort: 4317 }
+            - { name: otlp-http, containerPort: 4319 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/otel }
+            - { name: varlog, mountPath: /var/log, readOnly: true }
+          resources: {{- toYaml .Values.collector.resources | nindent 12 }}
+      volumes:
+        - { name: config, configMap: { name: {{ include "oscilyx.fullname" . }}-collector } }
+        - { name: varlog, hostPath: { path: /var/log } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/component: collector
+    {{- include "oscilyx.selectorLabels" . | nindent 4 }}
+  ports:
+    - { name: otlp-grpc, port: 4317, targetPort: otlp-grpc }
+    - { name: otlp-http, port: 4319, targetPort: otlp-http }
+{{- if .Values.collector.clusterMetrics.enabled }}
+---
+# Cluster-wide metrics (k8s_cluster receiver) must run ONCE per cluster. Running it in
+# the per-node DaemonSet reports every cluster metric once per node.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-cluster-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    receivers:
+      k8s_cluster:
+        auth_type: serviceAccount
+        collection_interval: {{ .Values.collector.metricsInterval | default "60s" }}
+    {{- $mns := (default (dict) .Values.collector.metrics).namespaces }}
+    processors:
+      {{- if $mns }}
+      filter/metrics-ns:
+        error_mode: ignore
+        metrics:
+          metric:
+            - 'resource.attributes["k8s.namespace.name"] != nil and not IsMatch(resource.attributes["k8s.namespace.name"], "^({{ join "|" $mns }})$")'
+      {{- end }}
+      batch: { timeout: 5s, send_batch_size: 1024 }
+      memory_limiter: { check_interval: 1s, limit_percentage: 85, spike_limit_percentage: 25 }
+      {{- if $clusterName }}
+      resource/cluster:
+        attributes:
+          - { key: k8s.cluster.name, value: {{ $clusterName | quote }}, action: upsert }
+      {{- end }}
+      resourcedetection:
+        detectors: [env, eks, aks, ec2, azure, gcp, system]
+        timeout: 5s
+        override: false
+    exporters:
+      otlphttp/oscilyx:
+        endpoint: {{ if $remote.endpoint }}{{ $remote.endpoint }}{{ else }}http://{{ include "oscilyx.fullname" . }}:{{ .Values.service.port }}{{ end }}
+        {{- if $remote.insecureSkipVerify }}
+        tls: { insecure_skip_verify: true }
+        {{- end }}
+        {{- if $remote.endpoint }}
+        {{- if $remoteAuth }}
+        headers:
+          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+        {{- end }}
+        {{- else if eq .Values.mode "hosted" }}
+        headers:
+          x-oscilyx-key: "${env:OSCILYX_INGEST_KEY}"
+        {{- else if .Values.auth.token }}
+        headers:
+          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+        {{- end }}
+        retry_on_failure: { enabled: true, initial_interval: 1s, max_interval: 30s }
+    service:
+      pipelines:
+        metrics: { receivers: [k8s_cluster], processors: [memory_limiter, {{ if $mns }}filter/metrics-ns, {{ end }}resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch], exporters: [otlphttp/oscilyx] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-cluster-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: cluster-collector
+      {{- include "oscilyx.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Restart the collector pods whenever their configuration changes. A ConfigMap edit alone does not
+        # restart a pod, so without this a changed scrape interval or pipeline would not take effect until
+        # someone restarted it by hand. Bump the chart version when the config template itself changes.
+        checksum/config: {{ printf "%s|%s|%s" .Chart.Version (toYaml .Values.collector) (toYaml .Values.autoInstrumentation) | sha256sum }}
+      labels:
+        app.kubernetes.io/component: cluster-collector
+        {{- include "oscilyx.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "oscilyx.fullname" . }}-collector
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: otelcol
+          image: {{ .Values.collector.image }}
+          args: ["--config=/etc/otel/config.yaml"]
+          {{- if $remoteAuth }}
+          env:
+            - name: OSCILYX_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ $remoteSecret }}, key: {{ $remoteKey }} } }
+          {{- else if eq .Values.mode "hosted" }}
+          env:
+            - name: OSCILYX_INGEST_KEY
+              valueFrom: { secretKeyRef: { name: {{ required "hosted.collectorKeySecret is required when mode=hosted and collector.enabled=true (or set collector.enabled=false)" .Values.hosted.collectorKeySecret }}, key: {{ .Values.hosted.collectorKeyKey }} } }
+          {{- else if .Values.auth.existingSecret }}
+          env:
+            - name: OSCILYX_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ .Values.auth.existingSecret }}, key: {{ .Values.auth.existingSecretTokenKey }} } }
+          {{- else if .Values.auth.token }}
+          env:
+            - name: OSCILYX_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ include "oscilyx.fullname" . }}-auth, key: token } }
+          {{- end }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/otel }
+          resources: {{- toYaml .Values.collector.resources | nindent 12 }}
+      volumes:
+        - { name: config, configMap: { name: {{ include "oscilyx.fullname" . }}-cluster-collector } }
+{{- end }}
+{{- end }}

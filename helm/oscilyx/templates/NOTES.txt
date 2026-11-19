@@ -1,0 +1,77 @@
+Oscilyx is installed!  Mode: {{ .Values.mode }}
+{{- if eq .Values.mode "hosted" }}
+
+HOSTED MODE: create your first organization with the platform admin token, then hand its admin key to the customer:
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "oscilyx.fullname" . }} 4318:4318 &
+   ADMIN=$(kubectl -n {{ .Release.Namespace }} get secret {{ .Values.hosted.adminTokenSecret }} -o jsonpath='{.data.{{ .Values.hosted.adminTokenKey }}}' | base64 -d)
+   curl -s -X POST localhost:4318/admin/orgs -H "Authorization: Bearer $ADMIN" -H 'content-type: application/json' -d '{"name":"acme","daily_cap":5000000,"retention_hours":72}'
+   The response contains the organization's admin key once (stored hashed afterwards). Customers sign in with it in the UI.
+   Self-hosted data stays in your cluster; in hosted mode tenants' data lives on this volume, so back it up (see STORAGE-AND-COST.md).
+{{- end }}
+
+{{- if not (include "oscilyx.serverEnabled" .) }}
+
+AGENT-ONLY INSTALL: no Oscilyx server runs in this cluster. The collector sends this cluster's telemetry to:
+   {{ default "(collector.remote.endpoint is not set: set it, or the collector has nowhere to send)" .Values.collector.remote.endpoint }}
+   Cluster name: {{ default "(not set)" .Values.collector.clusterName }}
+   Check:   kubectl -n {{ .Release.Namespace }} get pods   and   kubectl -n {{ .Release.Namespace }} logs ds/{{ include "oscilyx.fullname" . }}-collector --tail=20
+   In the console, Clusters shows this cluster as "live" within a minute.
+{{- else }}
+1. Access the UI:
+{{- if .Values.ingress.enabled }}
+   {{- range .Values.ingress.hosts }}
+   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+   {{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+   kubectl get svc {{ include "oscilyx.fullname" . }} -n {{ .Release.Namespace }}
+{{- else if contains "LoadBalancer" .Values.service.type }}
+   kubectl get svc {{ include "oscilyx.fullname" . }} -n {{ .Release.Namespace }} -w
+{{- else }}
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "oscilyx.fullname" . }} 4318:4318
+   open http://localhost:4318
+{{- end }}
+
+2. Send OpenTelemetry data:
+   Cluster-local endpoint:
+     http://{{ include "oscilyx.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:4318
+
+   More clusters: open Clusters in the UI to add each one and get its token and install command.
+{{- end }}
+
+{{- if .Values.collector.enabled }}
+
+3. The bundled OpenTelemetry Collector DaemonSet is already forwarding:
+   - Container logs (from /var/log/pods)
+   - Node and Kubernetes cluster metrics
+   - Any OTLP traffic sent to it on :4317 (gRPC) / :4319 (HTTP)
+
+   Point your apps at:
+     OTEL_EXPORTER_OTLP_ENDPOINT=http://{{ include "oscilyx.fullname" . }}-collector.{{ .Release.Namespace }}.svc.cluster.local:4319
+{{- end }}
+
+{{- if .Values.autoInstrumentation.enabled }}
+
+Tracing with no code changes (needs the OpenTelemetry Operator):
+{{- if (index .Values "opentelemetry-operator").enabled }}
+   The Operator was installed with this release. Check:  kubectl get instrumentation -n {{ .Release.Namespace }}
+{{- else }}
+   Operator not enabled here. Either add  --set opentelemetry-operator.enabled=true --wait  to this helm command,
+   or install the Operator separately and re-run helm upgrade.
+{{- end }}
+   Then switch tracing on per workload (restarts its pods):
+     scripts/instrument.sh java   -n <namespace> <deployment>
+     scripts/instrument.sh dotnet -n <namespace> <deployment>   # add --musl on Alpine images
+   Traces appear in Oscilyx under Traces within a minute.
+{{- end }}
+
+{{- if .Values.ai.enabled }}
+
+4. Claude assistant: create the API-key secret once (never put the key in values files), then restart:
+   kubectl -n {{ .Release.Namespace }} create secret generic {{ .Values.ai.existingSecret }} --from-literal={{ .Values.ai.secretKey }}=<YOUR_ANTHROPIC_API_KEY>
+   kubectl -n {{ .Release.Namespace }} rollout restart statefulset/{{ include "oscilyx.fullname" . }}
+{{- end }}
+{{- if and (include "oscilyx.serverEnabled" .) (not .Values.auth.token) (not .Values.auth.existingSecret) }}
+
+WARNING: no auth.token is set, so anyone who can reach Oscilyx has ADMIN access to it and its data. Set one:
+  helm upgrade {{ .Release.Name }} ./helm/oscilyx -n {{ .Release.Namespace }} --reset-then-reuse-values --set auth.token=$(openssl rand -hex 24)
+{{- end }}

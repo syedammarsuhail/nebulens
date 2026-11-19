@@ -1,0 +1,73 @@
+{{- if .Values.openshift.scc.enabled }}
+# The log collector reads /var/log/pods from each node (a hostPath mount). OpenShift's default
+# "restricted-v2" SCC forbids that, so the DaemonSet needs its own SCC. This one grants the
+# minimum: a read-only host path and the host's user namespace. It does NOT grant privileged,
+# host networking, host PID or extra capabilities.
+# Creating an SCC needs cluster-admin at install time:
+#   helm install oscilyx ./helm/oscilyx -n oscilyx -f values-openshift.yaml
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: {{ include "oscilyx.fullname" . }}-collector
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  annotations:
+    kubernetes.io/description: >-
+      Lets the Oscilyx log collector read /var/log on each node. No privilege escalation,
+      no added capabilities, no host network.
+allowPrivilegedContainer: false
+allowPrivilegeEscalation: false
+allowHostNetwork: false
+allowHostPorts: false
+allowHostPID: false
+allowHostIPC: false
+readOnlyRootFilesystem: true
+requiredDropCapabilities: [ALL]
+allowedCapabilities: []
+defaultAddCapabilities: []
+# The collector must run as a fixed UID to read root-owned log files; RunAsAny is required
+# because OpenShift would otherwise assign a random UID from the namespace range.
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+fsGroup:
+  type: RunAsAny
+volumes: [configMap, downwardAPI, emptyDir, hostPath, projected, secret]
+allowedHostPaths:
+  - pathPrefix: /var/log
+    readOnly: true
+users:
+  - system:serviceaccount:{{ .Release.Namespace }}:{{ include "oscilyx.fullname" . }}-collector
+{{- end }}
+{{- if .Values.openshift.route.enabled }}
+---
+# OpenShift Route. Use this instead of ingress.enabled when running on OCP.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "oscilyx.fullname" . }}
+  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  {{- with .Values.openshift.route.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.openshift.route.host }}
+  host: {{ . | quote }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "oscilyx.fullname" . }}
+    weight: 100
+  port:
+    targetPort: http
+  {{- if .Values.openshift.route.tls.enabled }}
+  tls:
+    termination: {{ .Values.openshift.route.tls.termination }}
+    {{- if eq .Values.openshift.route.tls.termination "edge" }}
+    insecureEdgeTerminationPolicy: {{ .Values.openshift.route.tls.insecureEdgeTerminationPolicy }}
+    {{- end }}
+  {{- end }}
+  wildcardPolicy: None
+{{- end }}

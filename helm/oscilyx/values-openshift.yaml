@@ -1,0 +1,89 @@
+# Oscilyx on OpenShift (OCP 4.x, OKD, ROSA, ARO)
+#
+#   oc new-project oscilyx
+#   helm install oscilyx ./helm/oscilyx -n oscilyx -f helm/oscilyx/values-openshift.yaml \
+#     --set image.repository=image-registry.openshift-image-registry.svc:5000/oscilyx/oscilyx \
+#     --set auth.token=<CHOOSE_A_TOKEN>
+#
+# OpenShift differs from vanilla Kubernetes in three ways that matter here:
+#   1. The "restricted-v2" SCC assigns each pod a random UID from the project's range, so a
+#      hard-coded runAsUser is rejected. Oscilyx therefore runs with no fixed UID below.
+#   2. Reading /var/log/pods is a hostPath mount, which restricted-v2 forbids. The chart ships
+#      its own minimal SCC for the log collector (openshift.scc.enabled). Installing it needs
+#      cluster-admin once; it grants a read-only host path and nothing else.
+#   3. Routes replace Ingress.
+
+image:
+  repository: image-registry.openshift-image-registry.svc:5000/oscilyx/oscilyx   # or your Quay/ECR/ACR
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# STORAGE — check what the cluster offers:  oc get storageclass
+#   ODF / OpenShift Data Foundation : ocs-storagecluster-ceph-rbd
+#   ROSA (AWS)                      : gp3-csi
+#   ARO (Azure)                     : managed-csi
+#   bare-metal LSO                  : local-block / localblock-sc
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: ""          # "" uses the cluster default; set it explicitly in production
+  accessMode: ReadWriteOnce
+
+# Let OpenShift assign the UID and fsGroup from the project's range. A hard-coded runAsUser or
+# fsGroup is rejected by restricted-v2, so both are cleared with "null" (an empty map {} would
+# NOT clear them: Helm merges maps, so the defaults in values.yaml would survive).
+podSecurityContext: null
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: null             # cleared: OpenShift assigns the UID
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+
+service:
+  type: ClusterIP           # the Route below exposes the UI
+
+ingress:
+  enabled: false            # OpenShift uses Routes instead
+
+openshift:
+  scc:
+    enabled: true           # needed for container-log collection; needs cluster-admin at install
+  route:
+    enabled: true
+    host: ""                # empty: oscilyx-oscilyx.apps.<cluster-domain>
+    tls:
+      enabled: true
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+
+collector:
+  enabled: true
+  # The collector must read root-owned files under /var/log/pods, so it runs as UID 0 with a
+  # read-only root filesystem, no capabilities and no privilege escalation. The SCC above allows
+  # exactly this and nothing more. To avoid it entirely, set collector.enabled=false and send
+  # OTLP straight to Oscilyx — you then lose container-log collection and node metrics.
+  podSecurityContext:
+    runAsUser: 0
+  securityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  resources:
+    limits:   { cpu: 500m, memory: 512Mi }
+    requests: { cpu: 100m, memory: 128Mi }
+
+auth:
+  token: "set-via--set-or-a-sealed-secret"
+
+env:
+  OSCILYX_RETENTION_HOURS: "168"
+
+# Zero-code tracing: OpenShift ships Red Hat build of OpenTelemetry (the same Operator).
+# Install it from OperatorHub, then leave this false and run:
+#   scripts/instrument.sh java -n <project> <deployment>
+opentelemetry-operator:
+  enabled: false

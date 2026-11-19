@@ -1,0 +1,13 @@
+.git
+.github
+helm
+deploy
+scripts
+tests
+*.md
+*.patch
+*.tar.gz
+__pycache__
+*.db
+*.db-wal
+*.db-shm

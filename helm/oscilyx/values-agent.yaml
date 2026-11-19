@@ -1,0 +1,39 @@
+# Agent-only install: this cluster runs only the OpenTelemetry collector (and, optionally, the operator and
+# auto-injection) and sends everything to a Oscilyx console that runs in another cluster.
+#
+# 1. In the console open Clusters -> Add cluster. It shows the endpoint, the cluster token and these commands.
+# 2. Create the token Secret in this cluster:
+#      kubectl create namespace observability
+#      kubectl -n observability create secret generic oscilyx-cluster-token --from-literal=token=<TOKEN FROM THE CONSOLE>
+# 3. helm upgrade --install oscilyx-agent ./helm/oscilyx -n observability -f values-agent.yaml \
+#        --set collector.clusterName=<CLUSTER NAME> --set collector.remote.endpoint=<CONSOLE ENDPOINT>
+#
+# The console decides which cluster the data belongs to from the token, so a mistyped clusterName cannot put this
+# cluster's data under another cluster.
+
+server:
+  enabled: false                 # no Oscilyx server, database or UI in this cluster
+
+image:
+  repository: plasmacomputing/microai   # only used by the optional auto-inject CronJob
+  tag: "oscilyx_11_0"
+  pullPolicy: IfNotPresent
+
+collector:
+  enabled: true
+  clusterName: ""                # set with --set collector.clusterName=...
+  remote:
+    endpoint: ""                 # set with --set collector.remote.endpoint=...
+    tokenSecret: oscilyx-cluster-token
+    tokenSecretKey: token
+    insecureSkipVerify: false
+  metricsInterval: "60s"
+  logs:
+    namespaces: []               # e.g. [application]: read container logs only from these namespaces
+  metrics:
+    namespaces: []               # e.g. [application]: keep pod metrics only from these namespaces
+  traceSamplingPercent: 100
+
+# Zero-code tracing works in an agent-only cluster too: the operator injects agents that send to the local collector.
+opentelemetry-operator:
+  enabled: false

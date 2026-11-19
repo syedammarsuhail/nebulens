@@ -1,0 +1,78 @@
+# Supply-chain evidence for security reviews: an SBOM, a vulnerability report and a signed image.
+# Banks and government buyers ask for all three before a deployment is approved.
+name: supply-chain
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write        # attach artefacts to the release
+  packages: write        # push the image
+  id-token: write        # keyless signing with Sigstore
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-sign-sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.ref_name }}
+          provenance: true        # SLSA provenance attestation
+
+      # SBOM in both common formats: CycloneDX is usually what a bank's tooling wants,
+      # SPDX is usual for government procurement.
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}:${{ github.ref_name }}
+          format: cyclonedx-json
+          output-file: oscilyx-sbom.cdx.json
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}:${{ github.ref_name }}
+          format: spdx-json
+          output-file: oscilyx-sbom.spdx.json
+
+      # Vulnerability report. Does not fail the build: the report is the deliverable, and a
+      # reviewer wants to see known issues with their severities, not a silent pass.
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ github.ref_name }}
+          format: sarif
+          output: oscilyx-vulns.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          exit-code: "0"
+
+      # Keyless signature, verifiable with:
+      #   cosign verify ghcr.io/<repo>:<tag> \
+      #     --certificate-identity-regexp '^https://github.com/<repo>/' \
+      #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - uses: sigstore/cosign-installer@v3
+      - run: |
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+          cosign attest --yes --predicate oscilyx-sbom.cdx.json --type cyclonedx "${IMAGE}@${DIGEST}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-evidence
+          path: |
+            oscilyx-sbom.cdx.json
+            oscilyx-sbom.spdx.json
+            oscilyx-vulns.sarif

@@ -1,0 +1,10 @@
+*.log
+*.pyc
+*.session-secret
+.eks-dns.json
+.eks-rds-state
+.eks-tmp*
+.eks-token
+.pytest_cache/
+.release-check/
+__pycache__/
