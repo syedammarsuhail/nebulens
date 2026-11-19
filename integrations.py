@@ -45,7 +45,7 @@ INTEGRATIONS = [
         "id": "kubernetes", "name": "Kubernetes", "icon": "map", "category": "Infrastructure",
         "description": "Cluster overview, pod and node health, workload instrumentation via the OpenTelemetry Operator.",
         "setup": "operator", "setup_blocks": K8S_SETUP,
-        "detect": {"attributes": ["k8s.pod.name", "k8s.namespace.name", "k8s.node.name"],
+        "detect": {"kubernetes": True, "attributes": ["k8s.pod.name", "k8s.namespace.name", "k8s.node.name"],
                    "metric_names": ["k8s.pod.cpu.usage", "k8s.node.cpu.usage", "k8s.container.restarts"]},
         "dashboards": [
             {"slug": "kubernetes-cluster", "name": "Kubernetes · Cluster",
@@ -84,7 +84,7 @@ INTEGRATIONS = [
             {"kind": "command", "label": "Then start your app with it",
              "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nOTEL_LOGS_EXPORTER=otlp \\\njava -javaagent:opentelemetry-javaagent.jar -jar my-app.jar"},
         ],
-        "detect": {"attributes": ["telemetry.sdk.language"],
+        "detect": {"languages": ["java"], "attributes": ["telemetry.sdk.language"],
                    "metric_names": ["jvm.memory.used", "jvm.gc.duration", "jvm.thread.count"]},
         "dashboards": [
             {"slug": "jvm", "name": "JVM · Memory, GC and threads",
@@ -112,7 +112,7 @@ INTEGRATIONS = [
             {"kind": "command", "label": "Start your app with it",
              "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nnode --require @opentelemetry/auto-instrumentations-node/register app.js"},
         ],
-        "detect": {"attributes": ["telemetry.sdk.language"],
+        "detect": {"languages": ["nodejs"], "attributes": ["telemetry.sdk.language"],
                    "metric_names": ["nodejs.eventloop.lag", "v8js.heap.space.used_size"]},
         "dashboards": [
             {"slug": "nodejs", "name": "Node.js · Runtime",
@@ -136,7 +136,7 @@ INTEGRATIONS = [
             {"kind": "command", "label": "Start your app with it",
              "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nOTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true \\\nopentelemetry-instrument python app.py"},
         ],
-        "detect": {"attributes": ["telemetry.sdk.language"],
+        "detect": {"languages": ["python"], "attributes": ["telemetry.sdk.language"],
                    "metric_names": ["process.runtime.cpython.memory", "process.runtime.cpython.gc_count"]},
         "dashboards": [
             {"slug": "python", "name": "Python · Runtime",
@@ -255,7 +255,7 @@ INTEGRATIONS = [
              "code": '<script src="{BASE_URL}/sdk/nebulens-rum.js"\n        data-endpoint="{BASE_URL}"\n        data-service="my-web-app"\n        data-env="production"></script>'},
             {"kind": "note", "text": "Set `data-token` if the page is hosted on a different domain than NebuLens. Set `data-sample=\"0.2\"` to sample 20% of visitors."},
         ],
-        "detect": {"attributes": ["telemetry.sdk.name", "event.name"], "metric_names": []},
+        "detect": {"languages": ["webjs"], "attributes": ["telemetry.sdk.name", "event.name"], "metric_names": []},
         "dashboards": [
             {"slug": "browser-rum", "name": "Browser · Overview",
              "description": "Visit the dedicated Browser page for full Web Vitals; this dashboard summarises traffic.",

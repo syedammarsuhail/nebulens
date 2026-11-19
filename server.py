@@ -1701,29 +1701,49 @@ def k8s_wizard():
 import integrations as _ints
 
 
-def _detect_integration(integ, minutes=60):
-    """Return ("active" | "no data", details) for one integration based on recent telemetry."""
-    attrs_needed = integ["detect"].get("attributes") or []
-    names_needed = integ["detect"].get("metric_names") or []
-    t0 = since_ns(minutes)
-    seen = {"attributes": [], "metric_names": []}
-    if names_needed:
-        rows = q("SELECT name FROM metrics WHERE ts_ns>=? AND name IN (" +
-                 ",".join("?" * len(names_needed)) + ") LIMIT 1000", (t0, *names_needed))
-        seen["metric_names"] = sorted({r["name"] for r in rows})
-    if attrs_needed:
-        # Sample recent telemetry; check which required attributes appear.
-        found = set()
-        # spans use start_ns; logs and metrics use ts_ns
+@ttl_cached
+def _integration_facts(minutes=60):
+    """What integration detection needs, read once from the small registries written at ingest (metric names per hour,
+    one row per distinct resource) instead of scanning raw spans, logs and metrics once per integration. On a large or
+    network-mounted database the old scans made the Integrations page time out."""
+    _res_flush()   # resource rows are batched once a minute; include what arrived since
+    hr0 = int(since_ns(minutes) // 3_600_000_000_000)
+    names = {r[0] for r in qrows("SELECT DISTINCT name FROM metric_names_seen WHERE hr>=?", (hr0,))}
+    langs, k8s = set(), False
+    for lang, pod, node in qrows("SELECT DISTINCT lang, pod, node FROM resource_seen WHERE last_seen>=?",
+                                 (int(time.time() - minutes * 60),)):
+        if lang:
+            langs.add(str(lang).lower())
+        if pod or node:
+            k8s = True
+    return {"metric_names": names, "langs": langs, "k8s": k8s, "minutes": minutes}
+
+
+def _recent_attr_keys(facts):
+    """Attribute keys in a small sample of the newest rows (record and resource attributes), read at most once per request."""
+    if "attr_keys" not in facts:
+        keys, t0 = set(), since_ns(facts["minutes"])
         for table, tcol in (("logs", "ts_ns"), ("spans", "start_ns"), ("metrics", "ts_ns")):
-            for r in q(f"SELECT attrs FROM {table} WHERE {tcol}>=? ORDER BY {tcol} DESC LIMIT 200", (t0,)):
-                a = _as_dict(r["attrs"])
-                for want in attrs_needed:
-                    if want in a:
-                        found.add(want)
-            if found:
-                break
-        seen["attributes"] = sorted(found)
+            for r in q(f"SELECT attrs, res FROM {table} WHERE {tcol}>=? ORDER BY {tcol} DESC LIMIT 200", (t0,)):
+                keys.update(_as_dict(r["attrs"]))
+                res = _as_dict(r["res"])
+                keys.update(res.get("attributes") if isinstance(res.get("attributes"), dict) else res)
+        facts["attr_keys"] = keys
+    return facts["attr_keys"]
+
+
+def _detect_integration(integ, minutes=60, facts=None):
+    """Return ("active" | "no_data", details) for one integration based on recent telemetry."""
+    f = facts or _integration_facts(minutes)
+    d = integ["detect"]
+    seen = {"attributes": [], "metric_names": sorted(set(d.get("metric_names") or []) & f["metric_names"])}
+    langs = set(d.get("languages") or [])
+    if langs:                                    # a language integration: that language must actually be reporting
+        seen["attributes"] = ["telemetry.sdk.language=" + x for x in sorted(langs & f["langs"])]
+    elif d.get("kubernetes"):                    # data from pods or nodes
+        seen["attributes"] = list(d.get("attributes") or []) if f["k8s"] else []
+    elif d.get("attributes"):
+        seen["attributes"] = sorted(set(d["attributes"]) & _recent_attr_keys(f))
     is_active = bool(seen["attributes"] or seen["metric_names"])
     return ("active" if is_active else "no_data"), seen
 
@@ -1742,11 +1762,12 @@ def _install_record(iid):
 def integrations_list(minutes: float = 60):
     """Catalogue of all integrations with install state and detection status."""
     out = []
+    facts = _integration_facts(minutes)
     # Build a map of alert templates for fast lookup.
     tpl_by_id = {t["id"]: t for t in ALERT_TEMPLATES}
     for integ in _ints.INTEGRATIONS:
         installed = _install_record(integ["id"])
-        state, _ = _detect_integration(integ, minutes=minutes)
+        state, _ = _detect_integration(integ, minutes=minutes, facts=facts)
         out.append({
             "id": integ["id"], "name": integ["name"], "icon": integ["icon"],
             "category": integ["category"], "description": integ["description"],
