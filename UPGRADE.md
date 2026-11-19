@@ -1,3 +1,9 @@
+> **v11.3** — chart `0.4.3`. Rebuild the image.
+> - **Integrations page no longer times out.** Detection read spans, logs and metrics once per integration (up to ~30 scans per
+>   page load; slow on large or NFS-hosted databases). It now reads the small registries once per request: 3.3 s -> 0.05-0.1 s on EKS.
+> - **Correct detection:** Java, Node.js and Python only show as active when that language reports (any language used to light up
+>   all three); Kubernetes is detected from pods and nodes (resource attributes were never checked).
+>
 > **Chart 0.4.2** — **Tracing for every app with no code changes and no restarts (eBPF).** Same image (`nebulens_11_1`).
 > - New `ebpf.enabled=true`: one OpenTelemetry eBPF Instrumentation (OBI v1.0) agent per node traces every application in every
 >   namespace from the Linux kernel (HTTP, gRPC, SQL, Redis, Kafka and more; Java, .NET, Go, Python, Node.js, Ruby, Rust). Running pods
