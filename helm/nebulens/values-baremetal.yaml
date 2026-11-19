@@ -72,3 +72,8 @@ collector:
 # Recommended label-and-pin for the PVC:
 # tolerations: []
 # affinity: {}
+
+# Trace every app in every namespace with no code change and no restart (eBPF, one privileged agent per node).
+# Needs Linux 5.8+ with BTF on each node (check: uname -r; ls /sys/kernel/btf/vmlinux). Set false to turn it off.
+ebpf:
+  enabled: true

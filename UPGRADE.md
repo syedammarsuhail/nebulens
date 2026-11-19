@@ -6,6 +6,7 @@
 >   Turn on with `helm upgrade nebulens ./helm/nebulens -n observability --reset-then-reuse-values --set ebpf.enabled=true`.
 > - Tested on EKS: apps with no OpenTelemetry code were traced across three services within a minute, without restarting them.
 > - `scripts/eks.sh` creates the gp3 StorageClass that new EKS clusters lack.
+> - `values-baremetal.yaml` now turns eBPF tracing on by default (set `ebpf.enabled=false` to opt out).
 > - New `helm/nebulens/values-full.yaml`: everything on for a full test (collector keeping every trace, eBPF, the OpenTelemetry
 >   Operator and automatic agent injection). Use it with your platform overlay; see GETTING-STARTED, "Everything at once".
 >
