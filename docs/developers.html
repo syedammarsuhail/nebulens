@@ -182,12 +182,17 @@ otel.SetTracerProvider(tp)
 
 <span class="c">// run with</span>
 <span class="k">OTEL_SERVICE_NAME</span>=<span class="s">pricing</span> <span class="k">OTEL_EXPORTER_OTLP_ENDPOINT</span>=<span class="s">http://nebulens:4318</span> ./pricing</pre></div>
-    <div class="panel" role="tabpanel" id="l-k8s" aria-labelledby="tl-k8s" hidden><button class="copy" type="button">copy</button><pre><span class="c"># install the OpenTelemetry Operator with NebuLens, then opt workloads in by label</span>
+    <div class="panel" role="tabpanel" id="l-k8s" aria-labelledby="tl-k8s" hidden><button class="copy" type="button">copy</button><pre><span class="c"># install the OpenTelemetry Operator together with NebuLens (skip if your cluster already has one)</span>
 helm upgrade nebulens ./helm/nebulens -n observability --reuse-values \
-  --set opentelemetry-operator.enabled=true
+  --set opentelemetry-operator.enabled=true --wait --timeout 5m
 
-kubectl label deploy/checkout <span class="s">nebulens.io/language=python</span>
-<span class="c"># Java, .NET, Python, Node.js and Go are detected; opt out with nebulens.io/instrument=false</span></pre></div>
+<span class="c"># switch tracing on for a workload: the pod restarts with the language agent injected</span>
+scripts/instrument.sh <span class="s">python</span> -n shop checkout     <span class="c"># java, dotnet, nodejs, go</span>
+
+<span class="c"># or let NebuLens annotate whole namespaces every 10 minutes (it detects the language)</span>
+helm upgrade nebulens ./helm/nebulens -n observability --reuse-values \
+  --set autoInstrumentation.autoInject.enabled=true --set autoInstrumentation.autoInject.dryRun=false \
+  --set "autoInstrumentation.autoInject.namespaces={shop}"</pre></div>
   </div>
 </div></section>
 
