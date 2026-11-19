@@ -1,14 +1,14 @@
 {{- if .Values.collector.enabled -}}
 {{- $remote := default (dict) .Values.collector.remote -}}
 {{- $remoteAuth := and $remote.endpoint (or $remote.token $remote.tokenSecret) -}}
-{{- $remoteSecret := default (printf "%s-remote" (include "oscilyx.fullname" .)) $remote.tokenSecret -}}
+{{- $remoteSecret := default (printf "%s-remote" (include "nebulens.fullname" .)) $remote.tokenSecret -}}
 {{- $remoteKey := default "token" $remote.tokenSecretKey -}}
-{{- $clusterName := default (index (default (dict) .Values.env) "OSCILYX_CLUSTER_NAME") .Values.collector.clusterName -}}
+{{- $clusterName := default (index (default (dict) .Values.env) "NEBULENS_CLUSTER_NAME") .Values.collector.clusterName -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 data:
   config.yaml: |
     receivers:
@@ -130,7 +130,7 @@ data:
         limit_percentage: 85
         spike_limit_percentage: 25
       # ------- SignalControl Edge (local filtering, saves storage) -------
-      # Drop high-volume kube-system health-check noise before it hits Oscilyx.
+      # Drop high-volume kube-system health-check noise before it hits NebuLens.
       filter/noise:
         error_mode: ignore
         logs:
@@ -139,12 +139,12 @@ data:
             {{- $minSev := int (default 0 (default (dict) .Values.collector.logs).minSeverity) }}
             {{- if gt $minSev 0 }}
             # Drop records that already carry a severity below the minimum. Records with no severity (plain container
-            # logs) pass through; Oscilyx reads their level from the text and applies OSCILYX_MIN_LOG_SEVERITY.
+            # logs) pass through; NebuLens reads their level from the text and applies NEBULENS_MIN_LOG_SEVERITY.
             - 'severity_number > 0 and severity_number < {{ $minSev }}'
             {{- end }}
             - 'resource.attributes["k8s.namespace.name"] == "kube-system" and severity_number < 9'
       {{- if $clusterName }}
-      # Name this cluster on every record. A registered cluster token makes Oscilyx do this on the server side as well.
+      # Name this cluster on every record. A registered cluster token makes NebuLens do this on the server side as well.
       resource/cluster:
         attributes:
           - { key: k8s.cluster.name, value: {{ $clusterName | quote }}, action: upsert }
@@ -168,22 +168,22 @@ data:
           - { name: slow,   type: latency,     latency: { threshold_ms: 1000 } }
           - { name: sample, type: probabilistic, probabilistic: { sampling_percentage: {{ .Values.collector.traceSamplingPercent | default 20 }} } }
     exporters:
-      otlphttp/oscilyx:
-        endpoint: {{ if $remote.endpoint }}{{ $remote.endpoint }}{{ else }}http://{{ include "oscilyx.fullname" . }}:{{ .Values.service.port }}{{ end }}
+      otlphttp/nebulens:
+        endpoint: {{ if $remote.endpoint }}{{ $remote.endpoint }}{{ else }}http://{{ include "nebulens.fullname" . }}:{{ .Values.service.port }}{{ end }}
         {{- if $remote.insecureSkipVerify }}
         tls: { insecure_skip_verify: true }
         {{- end }}
         {{- if $remote.endpoint }}
         {{- if $remoteAuth }}
         headers:
-          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+          Authorization: "Bearer ${env:NEBULENS_TOKEN}"
         {{- end }}
         {{- else if eq .Values.mode "hosted" }}
         headers:
-          x-oscilyx-key: "${env:OSCILYX_INGEST_KEY}"
+          x-nebulens-key: "${env:NEBULENS_INGEST_KEY}"
         {{- else if .Values.auth.token }}
         headers:
-          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+          Authorization: "Bearer ${env:NEBULENS_TOKEN}"
         {{- end }}
         retry_on_failure: { enabled: true, initial_interval: 1s, max_interval: 30s }
         sending_queue:   { enabled: true, num_consumers: 4, queue_size: 5000 }
@@ -191,24 +191,24 @@ data:
       pipelines:
         traces:  { receivers: [otlp],
                    processors: [memory_limiter, k8sattributes, resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}tail_sampling, batch],
-                   exporters: [otlphttp/oscilyx] }
+                   exporters: [otlphttp/nebulens] }
         metrics: { receivers: [otlp, hostmetrics, kubeletstats, prometheus],
                    processors: [memory_limiter, {{ if $mns }}filter/metrics-ns, {{ end }}k8sattributes, resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch],
-                   exporters: [otlphttp/oscilyx] }
+                   exporters: [otlphttp/nebulens] }
         logs:    { receivers: [otlp, filelog],
                    processors: [memory_limiter, filter/noise, k8sattributes, resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch],
-                   exporters: [otlphttp/oscilyx] }
+                   exporters: [otlphttp/nebulens] }
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
+  name: {{ include "nebulens.fullname" . }}-collector
 rules:
   - apiGroups: [""]
     resources: [pods, nodes, nodes/stats, nodes/proxy, nodes/metrics, namespaces, services, endpoints, replicationcontrollers, resourcequotas, events, configmaps]
@@ -234,23 +234,23 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
-roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ include "oscilyx.fullname" . }}-collector }
+  name: {{ include "nebulens.fullname" . }}-collector
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: {{ include "nebulens.fullname" . }}-collector }
 subjects:
   - kind: ServiceAccount
-    name: {{ include "oscilyx.fullname" . }}-collector
+    name: {{ include "nebulens.fullname" . }}-collector
     namespace: {{ .Release.Namespace }}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/component: collector
-      {{- include "oscilyx.selectorLabels" . | nindent 6 }}
+      {{- include "nebulens.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -260,9 +260,9 @@ spec:
         checksum/config: {{ printf "%s|%s|%s" .Chart.Version (toYaml .Values.collector) (toYaml .Values.autoInstrumentation) | sha256sum }}
       labels:
         app.kubernetes.io/component: collector
-        {{- include "oscilyx.selectorLabels" . | nindent 8 }}
+        {{- include "nebulens.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "oscilyx.fullname" . }}-collector
+      serviceAccountName: {{ include "nebulens.fullname" . }}-collector
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -283,17 +283,17 @@ spec:
             - name: K8S_NODE_IP
               valueFrom: { fieldRef: { fieldPath: status.hostIP } }
             {{- if $remoteAuth }}
-            - name: OSCILYX_TOKEN
+            - name: NEBULENS_TOKEN
               valueFrom: { secretKeyRef: { name: {{ $remoteSecret }}, key: {{ $remoteKey }} } }
             {{- else if eq .Values.mode "hosted" }}
-            - name: OSCILYX_INGEST_KEY
+            - name: NEBULENS_INGEST_KEY
               valueFrom: { secretKeyRef: { name: {{ required "hosted.collectorKeySecret is required when mode=hosted and collector.enabled=true (or set collector.enabled=false)" .Values.hosted.collectorKeySecret }}, key: {{ .Values.hosted.collectorKeyKey }} } }
             {{- else if .Values.auth.existingSecret }}
-            - name: OSCILYX_TOKEN
+            - name: NEBULENS_TOKEN
               valueFrom: { secretKeyRef: { name: {{ .Values.auth.existingSecret }}, key: {{ .Values.auth.existingSecretTokenKey }} } }
             {{- else if .Values.auth.token }}
-            - name: OSCILYX_TOKEN
-              valueFrom: { secretKeyRef: { name: {{ include "oscilyx.fullname" . }}-auth, key: token } }
+            - name: NEBULENS_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ include "nebulens.fullname" . }}-auth, key: token } }
             {{- end }}
           ports:
             - { name: otlp-grpc, containerPort: 4317 }
@@ -303,18 +303,18 @@ spec:
             - { name: varlog, mountPath: /var/log, readOnly: true }
           resources: {{- toYaml .Values.collector.resources | nindent 12 }}
       volumes:
-        - { name: config, configMap: { name: {{ include "oscilyx.fullname" . }}-collector } }
+        - { name: config, configMap: { name: {{ include "nebulens.fullname" . }}-collector } }
         - { name: varlog, hostPath: { path: /var/log } }
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 spec:
   selector:
     app.kubernetes.io/component: collector
-    {{- include "oscilyx.selectorLabels" . | nindent 4 }}
+    {{- include "nebulens.selectorLabels" . | nindent 4 }}
   ports:
     - { name: otlp-grpc, port: 4317, targetPort: otlp-grpc }
     - { name: otlp-http, port: 4319, targetPort: otlp-http }
@@ -325,8 +325,8 @@ spec:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-cluster-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-cluster-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 data:
   config.yaml: |
     receivers:
@@ -354,39 +354,39 @@ data:
         timeout: 5s
         override: false
     exporters:
-      otlphttp/oscilyx:
-        endpoint: {{ if $remote.endpoint }}{{ $remote.endpoint }}{{ else }}http://{{ include "oscilyx.fullname" . }}:{{ .Values.service.port }}{{ end }}
+      otlphttp/nebulens:
+        endpoint: {{ if $remote.endpoint }}{{ $remote.endpoint }}{{ else }}http://{{ include "nebulens.fullname" . }}:{{ .Values.service.port }}{{ end }}
         {{- if $remote.insecureSkipVerify }}
         tls: { insecure_skip_verify: true }
         {{- end }}
         {{- if $remote.endpoint }}
         {{- if $remoteAuth }}
         headers:
-          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+          Authorization: "Bearer ${env:NEBULENS_TOKEN}"
         {{- end }}
         {{- else if eq .Values.mode "hosted" }}
         headers:
-          x-oscilyx-key: "${env:OSCILYX_INGEST_KEY}"
+          x-nebulens-key: "${env:NEBULENS_INGEST_KEY}"
         {{- else if .Values.auth.token }}
         headers:
-          Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+          Authorization: "Bearer ${env:NEBULENS_TOKEN}"
         {{- end }}
         retry_on_failure: { enabled: true, initial_interval: 1s, max_interval: 30s }
     service:
       pipelines:
-        metrics: { receivers: [k8s_cluster], processors: [memory_limiter, {{ if $mns }}filter/metrics-ns, {{ end }}resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch], exporters: [otlphttp/oscilyx] }
+        metrics: { receivers: [k8s_cluster], processors: [memory_limiter, {{ if $mns }}filter/metrics-ns, {{ end }}resourcedetection, {{ if $clusterName }}resource/cluster, {{ end }}batch], exporters: [otlphttp/nebulens] }
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-cluster-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-cluster-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/component: cluster-collector
-      {{- include "oscilyx.selectorLabels" . | nindent 6 }}
+      {{- include "nebulens.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -396,9 +396,9 @@ spec:
         checksum/config: {{ printf "%s|%s|%s" .Chart.Version (toYaml .Values.collector) (toYaml .Values.autoInstrumentation) | sha256sum }}
       labels:
         app.kubernetes.io/component: cluster-collector
-        {{- include "oscilyx.selectorLabels" . | nindent 8 }}
+        {{- include "nebulens.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "oscilyx.fullname" . }}-collector
+      serviceAccountName: {{ include "nebulens.fullname" . }}-collector
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -409,25 +409,25 @@ spec:
           args: ["--config=/etc/otel/config.yaml"]
           {{- if $remoteAuth }}
           env:
-            - name: OSCILYX_TOKEN
+            - name: NEBULENS_TOKEN
               valueFrom: { secretKeyRef: { name: {{ $remoteSecret }}, key: {{ $remoteKey }} } }
           {{- else if eq .Values.mode "hosted" }}
           env:
-            - name: OSCILYX_INGEST_KEY
+            - name: NEBULENS_INGEST_KEY
               valueFrom: { secretKeyRef: { name: {{ required "hosted.collectorKeySecret is required when mode=hosted and collector.enabled=true (or set collector.enabled=false)" .Values.hosted.collectorKeySecret }}, key: {{ .Values.hosted.collectorKeyKey }} } }
           {{- else if .Values.auth.existingSecret }}
           env:
-            - name: OSCILYX_TOKEN
+            - name: NEBULENS_TOKEN
               valueFrom: { secretKeyRef: { name: {{ .Values.auth.existingSecret }}, key: {{ .Values.auth.existingSecretTokenKey }} } }
           {{- else if .Values.auth.token }}
           env:
-            - name: OSCILYX_TOKEN
-              valueFrom: { secretKeyRef: { name: {{ include "oscilyx.fullname" . }}-auth, key: token } }
+            - name: NEBULENS_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ include "nebulens.fullname" . }}-auth, key: token } }
           {{- end }}
           volumeMounts:
             - { name: config, mountPath: /etc/otel }
           resources: {{- toYaml .Values.collector.resources | nindent 12 }}
       volumes:
-        - { name: config, configMap: { name: {{ include "oscilyx.fullname" . }}-cluster-collector } }
+        - { name: config, configMap: { name: {{ include "nebulens.fullname" . }}-cluster-collector } }
 {{- end }}
 {{- end }}

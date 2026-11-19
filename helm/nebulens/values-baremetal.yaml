@@ -1,5 +1,5 @@
-# Oscilyx on bare-metal Kubernetes (on-prem, k3s, kubeadm, Rancher, OpenShift, etc.)
-# helm install oscilyx ./helm/oscilyx -n observability --create-namespace -f values-baremetal.yaml
+# NebuLens on bare-metal Kubernetes (on-prem, k3s, kubeadm, Rancher, OpenShift, etc.)
+# helm install nebulens ./helm/nebulens -n observability --create-namespace -f values-baremetal.yaml
 #
 # Bare metal has no cloud LoadBalancer and no cloud StorageClass, so you pick:
 #   - storage:  local-path / Longhorn / OpenEBS / Rook-Ceph / Portworx / NFS
@@ -7,7 +7,7 @@
 # Pick what's already installed on your cluster.
 
 image:
-  repository: oscilyx           # load via `kind load docker-image`, k3s imports, or a private registry
+  repository: nebulens           # load via `kind load docker-image`, k3s imports, or a private registry
   tag: "0.1.0"
   pullPolicy: IfNotPresent     # change to Never if the image is already on every node
 
@@ -26,7 +26,7 @@ persistence:
 
 # EXPOSE THE UI
 # Option A - ClusterIP + port-forward (dev only):
-#   kubectl -n observability port-forward svc/oscilyx 4318:4318
+#   kubectl -n observability port-forward svc/nebulens 4318:4318
 # Option B - NodePort (simple prod):
 service:
   type: NodePort               # exposes on every node's IP at a random high port
@@ -39,14 +39,14 @@ ingress:
   className: nginx             # or traefik, haproxy, contour...
   annotations: {}
   hosts:
-    - host: oscilyx.lab.local
+    - host: nebulens.lab.local
       paths: [{ path: /, pathType: Prefix }]
 
 auth:
   token: "change-me"           # set to a strong random string in prod
 
 env:
-  OSCILYX_RETENTION_HOURS: "168"
+  NEBULENS_RETENTION_HOURS: "168"
 
 # COLLECTOR
 # Bare-metal kubelets commonly use self-signed certs; insecure_skip_verify is already
@@ -63,11 +63,11 @@ collector:
   traceSamplingPercent: 15
 
 # NODE PLACEMENT
-# Keep Oscilyx on a stable node (SQLite is single-writer). If you have multi-node
+# Keep NebuLens on a stable node (SQLite is single-writer). If you have multi-node
 # bare metal, pin the StatefulSet to one node by labelling it and using nodeSelector:
-#   kubectl label node <name> oscilyx=true
+#   kubectl label node <name> nebulens=true
 # nodeSelector:
-#   oscilyx: "true"
+#   nebulens: "true"
 
 # Recommended label-and-pin for the PVC:
 # tolerations: []

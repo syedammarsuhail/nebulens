@@ -1,11 +1,11 @@
-# A simulated 22-service shop that sends realistic traces, logs and metrics to Oscilyx, with deliberate faults
+# A simulated 22-service shop that sends realistic traces, logs and metrics to NebuLens, with deliberate faults
 # (payments errors, slow fraud checks, search errors that grow, latency spikes, email bursts) so every page has something to find.
 #
 #   kubectl create namespace demo
-#   kubectl -n demo create secret generic oscilyx-token --from-literal=token=<your Oscilyx token>
-#   sed 's#oscilyx-demo:local#<your-registry>/oscilyx-demo:demo#' demo/k8s-sim-platform.yaml | kubectl apply -f -
+#   kubectl -n demo create secret generic nebulens-token --from-literal=token=<your NebuLens token>
+#   sed 's#nebulens-demo:local#<your-registry>/nebulens-demo:demo#' demo/k8s-sim-platform.yaml | kubectl apply -f -
 #
-# Remove with:  kubectl delete -f demo/k8s-sim-platform.yaml && kubectl -n demo delete secret oscilyx-token
+# Remove with:  kubectl delete -f demo/k8s-sim-platform.yaml && kubectl -n demo delete secret nebulens-token
 # Load: BATCH traces per tick every PERIOD seconds, per replica. Raise `replicas` and BATCH for a heavier test.
 apiVersion: apps/v1
 kind: Deployment
@@ -18,13 +18,13 @@ spec:
     spec:
       containers:
       - name: sim
-        image: oscilyx-demo:local
+        image: nebulens-demo:local
         imagePullPolicy: IfNotPresent
         command: ["python", "-u", "multi_service_load.py"]
         env:
-        - {name: OSCILYX_URL, value: "http://oscilyx.observability:4318"}
-        - name: OSCILYX_TOKEN
-          valueFrom: {secretKeyRef: {name: oscilyx-token, key: token}}
+        - {name: NEBULENS_URL, value: "http://nebulens.observability:4318"}
+        - name: NEBULENS_TOKEN
+          valueFrom: {secretKeyRef: {name: nebulens-token, key: token}}
         - {name: BATCH, value: "30"}
         - {name: PERIOD, value: "5"}
         resources:

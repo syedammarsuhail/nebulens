@@ -42,9 +42,9 @@ def test_severity_is_inferred_and_flagged(client):
     rows = get(client, "/api/logs?minutes=60&service=feedexport&limit=50")
     errs = [r for r in rows if r["body"].startswith("2026-11-09 ERROR")]
     assert errs and all(r["severity"] >= 17 for r in errs)
-    assert all(r["attrs"].get("oscilyx.severity.inferred") for r in errs)         # inferred, not reported
+    assert all(r["attrs"].get("nebulens.severity.inferred") for r in errs)         # inferred, not reported
     reported = [r for r in rows if r["body"].startswith("slow call")]
-    assert reported and not any("oscilyx.severity.inferred" in r["attrs"] for r in reported)
+    assert reported and not any("nebulens.severity.inferred" in r["attrs"] for r in reported)
 
 
 def test_blank_lines_are_dropped_and_cards_redacted(client):
@@ -275,9 +275,9 @@ def test_rum_summary_shapes_percentiles(client):
 
 
 def test_rum_sdk_is_served(client):
-    r = client.get("/sdk/oscilyx-rum.js")
+    r = client.get("/sdk/nebulens-rum.js")
     assert r.status_code == 200 and "javascript" in r.headers["content-type"]
-    assert b"oscilyx-rum" in r.content.lower() and len(r.content) < 20 * 1024
+    assert b"nebulens-rum" in r.content.lower() and len(r.content) < 20 * 1024
 
 
 # ---- Integrations end-to-end ---------------------------------------------------------------------------
@@ -398,7 +398,7 @@ def test_k8s_namespaces_coverage_pct(client):
 def test_k8s_wizard_steps_light_up_as_data_arrives(client):
     r = get(client, "/api/kubernetes/wizard")
     titles = [s["title"] for s in r["steps"]]
-    assert titles[0].startswith("Oscilyx collectors") and titles[-1].startswith("See traces")
+    assert titles[0].startswith("NebuLens collectors") and titles[-1].startswith("See traces")
     # All four should be green after the previous tests seeded telemetry
     assert r["complete"] is True
     assert all(s["ok"] for s in r["steps"])

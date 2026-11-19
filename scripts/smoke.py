@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end smoke test for a running Oscilyx.
+"""End-to-end smoke test for a running NebuLens.
 
     python scripts/smoke.py http://HOST:4318 [--token TOKEN]
 
@@ -32,7 +32,7 @@ def call(method, path, body=None, token=args.token, raw=False):
     if token:
         req.add_header("Authorization", "Bearer " + token)
     try:
-        # Reviewed: the operator's own Oscilyx URL from the command line.
+        # Reviewed: the operator's own NebuLens URL from the command line.
         with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310
             txt = r.read()
             return r.status, (txt if raw else json.loads(txt or b"null"))

@@ -1,4 +1,4 @@
-/* Oscilyx service map page. Graph + layout logic lives in mapkit.js (pure, unit-tested in tests/test_mapkit.js).
+/* NebuLens service map page. Graph + layout logic lives in mapkit.js (pure, unit-tested in tests/test_mapkit.js).
    This file only builds the DOM: toolbar, SVG canvas, minimap, side panel. */
 (function () {
   const P = window.P, K = window.MapKit;
@@ -85,7 +85,7 @@
           const filtered = st.onlyErr || st.hideExt || st.minCalls > 0;
           canvas.replaceChildren(el("div", { class: "mp-state" }, filtered && hasData
             ? empty("Nothing matches these filters", "Loosen the filters to see your services again.", el("button", { class: "btn sm", type: "button", style: "margin-top:10px", on: { click: () => { st.onlyErr = st.hideExt = false; st.minCalls = 0; minIn.value = 0; ["onlyErr", "hideExt", "minCalls"].forEach(k => cfg.set(k, "0")); rebuild(true); } } }, "Reset filters"))
-            : empty("No dependencies yet", "Traces that cross services draw the map automatically. Point an app at Oscilyx and it will appear here.", el("a", { class: "btn primary sm", href: "#/setup", style: "margin-top:10px" }, "Set up instrumentation"))));
+            : empty("No dependencies yet", "Traces that cross services draw the map automatically. Point an app at NebuLens and it will appear here.", el("a", { class: "btn primary sm", href: "#/setup", style: "margin-top:10px" }, "Set up instrumentation"))));
           return;
         }
         measure(); layoutAspect = W > 0 && H > 0 ? Math.max(1, Math.min(3, W / H)) : 2; L = K.layout(g, { dir: st.dir, NW, NH, aspect: layoutAspect });

@@ -41,18 +41,18 @@ def test_synthetic_check_to_metadata_records_a_block_not_a_request(srv, monkeypa
 
 
 def test_ai_endpoint_must_be_http(srv, monkeypatch):
-    for v in ("OSCILYX_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+    for v in ("NEBULENS_AI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
         monkeypatch.delenv(v, raising=False)
-    monkeypatch.setenv("OSCILYX_AI_PROVIDER", "openai")
-    monkeypatch.setenv("OSCILYX_AI_MODEL", "m")
-    monkeypatch.setenv("OSCILYX_AI_BASE_URL", "file:///etc")
-    assert srv._ai_ready() == (False, "OSCILYX_AI_BASE_URL must be an http(s) URL")
+    monkeypatch.setenv("NEBULENS_AI_PROVIDER", "openai")
+    monkeypatch.setenv("NEBULENS_AI_MODEL", "m")
+    monkeypatch.setenv("NEBULENS_AI_BASE_URL", "file:///etc")
+    assert srv._ai_ready() == (False, "NEBULENS_AI_BASE_URL must be an http(s) URL")
 
 
 @pytest.mark.skipif(not shutil.which("helm"), reason="helm not installed")
 @pytest.mark.parametrize("overlay", ["values-baremetal.yaml", "values-eks.yaml", "values-openshift.yaml"])
 def test_chart_refuses_placeholder_tokens(overlay):
-    chart = ROOT / "helm" / "oscilyx"
+    chart = ROOT / "helm" / "nebulens"
     bad = subprocess.run(["helm", "template", "p", str(chart), "-f", str(chart / overlay)], capture_output=True, text=True)
     assert bad.returncode != 0 and "placeholder" in bad.stderr
     ok = subprocess.run(["helm", "template", "p", str(chart), "-f", str(chart / overlay), "--set", "auth.token=" + "a" * 48],

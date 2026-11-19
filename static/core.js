@@ -1,7 +1,7 @@
-/* Oscilyx UI core: helpers, api, router, charts, tables, overlays, shell. No build step. */
+/* NebuLens UI core: helpers, api, router, charts, tables, overlays, shell. No build step. */
 (function () {
   const XHTML = "http://www.w3.org/1999/xhtml", SVGNS = "http://www.w3.org/2000/svg";
-  const P = (window.P = window.Oscilyx = { views: [], S: {} });
+  const P = (window.P = window.NebuLens = { views: [], S: {} });
   const $ = (s, r = document) => r.querySelector(s);
   const store = {
     get(k, d) { try { const v = localStorage.getItem("p0." + k); return v == null ? d : v; } catch { return d; } },
@@ -107,11 +107,11 @@
       el("div", { class: "um-key" },
         el("div", { class: "muted", style: "font-size:12px;margin-bottom:6px" }, "Already have a license key?"),
         el("div", { style: "display:flex;gap:8px" },
-          el("input", { id: "upgrade-key-input", type: "text", placeholder: "OSCILYX-XXXX-XXXX-XXXX", style: "flex:1;font-family:var(--mono);font-size:12px" }),
-          el("button", { class: "btn sm", on: { click: () => { const v = document.getElementById("upgrade-key-input").value.trim(); if (v) { store.set("license_key", v); toast("License key saved. Restart the server with OSCILYX_LICENSE_KEY set to activate Pro.", "ok"); } } } }, "Apply"))));
+          el("input", { id: "upgrade-key-input", type: "text", placeholder: "NEBULENS-XXXX-XXXX-XXXX", style: "flex:1;font-family:var(--mono);font-size:12px" }),
+          el("button", { class: "btn sm", on: { click: () => { const v = document.getElementById("upgrade-key-input").value.trim(); if (v) { store.set("license_key", v); toast("License key saved. Restart the server with NEBULENS_LICENSE_KEY set to activate Pro.", "ok"); } } } }, "Apply"))));
     modal({ title, width: 520, body, autofocus: false, actions: [
       { label: "Maybe later" },
-      { label: "Get Pro →", primary: true, onClick: () => { window.open("https://oscilyx.dev/pricing", "_blank"); } }
+      { label: "Get Pro →", primary: true, onClick: () => { window.open("https://nebulens.dev/pricing", "_blank"); } }
     ] });
   }
   P.upgradeModal = upgradeModal;
@@ -119,7 +119,7 @@
   async function api(path, o = {}) {
     const h = {}, tok = store.get("token", "");
     if (tok) h.Authorization = "Bearer " + tok;
-    const proj = store.get("project", ""); if (proj) h["x-oscilyx-project"] = proj;
+    const proj = store.get("project", ""); if (proj) h["x-nebulens-project"] = proj;
     if (o.body) h["Content-Type"] = "application/json";
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), o.timeout || 20000);
@@ -131,7 +131,7 @@
     } finally {
       clearTimeout(to);
     }
-    if (r.status === 401) throw new AuthError("This Oscilyx requires an API token.");
+    if (r.status === 401) throw new AuthError("This NebuLens requires an API token.");
     if (r.status === 400 && P.onProjectRequired) { const j = await r.clone().json().catch(() => ({})); if (j.error === "project_required") { P.onProjectRequired(j); throw new Error(j.message); } }
     if (r.status === 403) {
       const j = await r.clone().json().catch(() => ({}));
@@ -418,7 +418,7 @@
       if (c.token_required) sso.append(el("div", { class: "muted", style: "text-align:center;font-size:12px" }, "or use an API token below"));
       if (!c.token_required) inp.parentElement.style.display = "none";
     }).catch(() => {});
-    return el("div", { class: "panel", style: "max-width:520px;margin:60px auto;" }, el("div", { class: "ph" }, "Sign in"), el("div", { class: "pb", style: "padding-bottom:0" }, sso), el("div", { class: "pb", style: "display:flex;flex-direction:column;gap:12px" }, el("div", { class: "muted" }, P.mode === "hosted" ? "This is a Pulse-hosted workspace. Paste a read or admin API key for your project; it is stored only in this browser." : "This Oscilyx instance has OSCILYX_TOKEN set. Enter it once; it is stored only in this browser."), inp, el("div", {}, el("button", { class: "btn primary", on: { click: () => { store.set("token", inp.value.trim()); render(); } } }, "Unlock"))));
+    return el("div", { class: "panel", style: "max-width:520px;margin:60px auto;" }, el("div", { class: "ph" }, "Sign in"), el("div", { class: "pb", style: "padding-bottom:0" }, sso), el("div", { class: "pb", style: "display:flex;flex-direction:column;gap:12px" }, el("div", { class: "muted" }, P.mode === "hosted" ? "This is a Pulse-hosted workspace. Paste a read or admin API key for your project; it is stored only in this browser." : "This NebuLens instance has NEBULENS_TOKEN set. Enter it once; it is stored only in this browser."), inp, el("div", {}, el("button", { class: "btn primary", on: { click: () => { store.set("token", inp.value.trim()); render(); } } }, "Unlock"))));
   }
   function renderCrumbs(list, view) {
     const c = $("#crumbs"); c.replaceChildren();
@@ -493,7 +493,7 @@
     async function collect() {
       const v = inp.value.trim(), my = ++tick, low = v.toLowerCase();
       const pages = NAV.flatMap(([, it]) => it).filter(([, l]) => !low || l.toLowerCase().includes(low)).map(([ic, l, h]) => ({ group: "Pages", icon: ic, label: l, hint: "Go to", go: () => { location.hash = h; } }));
-      const acts = [{ group: "Actions", icon: "sparkle", label: v ? `Ask Oscilyx: “${v}”` : "Ask Oscilyx…", hint: "Investigate", go: () => openAsk(v) }, { group: "Actions", icon: "settings", label: "Toggle light / dark theme", go: toggleTheme }, { group: "Actions", icon: "alerts", label: "Create alert from template", go: () => nav("/alerts", { tab: "templates" }) }].filter(a => !low || a.label.toLowerCase().includes(low) || low.length > 8);
+      const acts = [{ group: "Actions", icon: "sparkle", label: v ? `Ask NebuLens: “${v}”` : "Ask NebuLens…", hint: "Investigate", go: () => openAsk(v) }, { group: "Actions", icon: "settings", label: "Toggle light / dark theme", go: toggleTheme }, { group: "Actions", icon: "alerts", label: "Create alert from template", go: () => nav("/alerts", { tab: "templates" }) }].filter(a => !low || a.label.toLowerCase().includes(low) || low.length > 8);
       items = v ? [...pages, ...acts] : [...pages.slice(0, 6), ...acts]; sel = 0; paint();
       if (v.length >= 2) {
         try {
@@ -518,16 +518,16 @@
     collect(); inp.focus(); inp.select();
   }
 
-  // ---------------------------------------------------------------- ask oscilyx
+  // ---------------------------------------------------------------- ask nebulens
   // assistant.js replaces this with the LLM-backed chat; this stays as a standalone fallback.
   function openAsk(question = "") { return (P.assistantOpen || openAskRules)(question); }
   function openAskRules(question = "") {
     const body = el("div", { class: "ask-body" }), inp = el("input", { placeholder: "e.g. Which services are slow? What broke?", autocomplete: "off" });
     const go = el("button", { class: "btn primary" }, "Ask");
-    const dh = el("div", { class: "dh" }, icon("sparkle", 18), el("h2", {}, "Ask Oscilyx"), el("small", { class: "muted" }, "rule-based analysis of your own telemetry"), el("button", { class: "btn icon ghost x", on: { click: closeDrawer } }, icon("x")));
+    const dh = el("div", { class: "dh" }, icon("sparkle", 18), el("h2", {}, "Ask NebuLens"), el("small", { class: "muted" }, "rule-based analysis of your own telemetry"), el("button", { class: "btn icon ghost x", on: { click: closeDrawer } }, icon("x")));
     openDrawer(el("div", { class: "db" }, dh, el("div", { class: "ask-in" }, inp, go), body), "ask");
     const sugg = list => el("div", { class: "sugg" }, ...list.map(s => el("button", { class: "chipbtn", on: { click: () => ask(s) } }, s)));
-    body.append(el("div", { class: "bubble" }, el("div", { class: "bs" }, "I analyse the traces, logs, metrics, alerts and SLOs stored in Oscilyx — no data leaves your cluster. Try:"), el("div", { class: "bs" }, sugg(["What is failing right now?", "Which services are slow?", "Show top error logs", "Any resource saturation?", "Give me an overview"]))));
+    body.append(el("div", { class: "bubble" }, el("div", { class: "bs" }, "I analyse the traces, logs, metrics, alerts and SLOs stored in NebuLens — no data leaves your cluster. Try:"), el("div", { class: "bs" }, sugg(["What is failing right now?", "Which services are slow?", "Show top error logs", "Any resource saturation?", "Give me an overview"]))));
     async function ask(text) {
       text = (text || inp.value).trim(); if (!text) return; inp.value = "";
       body.append(el("div", { class: "me" }, text)); const wait = el("div", { class: "muted" }, "Investigating…"); body.append(wait); body.scrollTop = 1e9;

@@ -1,7 +1,7 @@
-"""22-service simulated microservice platform that sends OTLP/HTTP to Oscilyx.
+"""22-service simulated microservice platform that sends OTLP/HTTP to NebuLens.
 
 Not real apps: this emits the same /v1/traces, /v1/logs and /v1/metrics payloads a real
-OpenTelemetry SDK would, so every Oscilyx page (map, RED, traces, logs, alerts, SLOs) has
+OpenTelemetry SDK would, so every NebuLens page (map, RED, traces, logs, alerts, SLOs) has
 realistic multi-hop data. Deliberate faults make the issues findable:
 
   payments-service     ~6% errors (card-provider failures)
@@ -11,13 +11,13 @@ realistic multi-hop data. Deliberate faults make the issues findable:
   email-worker         error bursts every few minutes
   elasticsearch        slow queries
 
-Env: OSCILYX_URL (default http://oscilyx.observability:4318), OSCILYX_TOKEN, BATCH (traces per tick), PERIOD (seconds).
+Env: NEBULENS_URL (default http://nebulens.observability:4318), NEBULENS_TOKEN, BATCH (traces per tick), PERIOD (seconds).
 Stdlib only, so it runs in a bare python image.
 """
 import json, os, random, time, urllib.request, uuid
 
-URL = os.environ.get("OSCILYX_URL", "http://oscilyx.observability:4318").rstrip("/")
-TOKEN = os.environ.get("OSCILYX_TOKEN", "")
+URL = os.environ.get("NEBULENS_URL", "http://nebulens.observability:4318").rstrip("/")
+TOKEN = os.environ.get("NEBULENS_TOKEN", "")
 BATCH = int(os.environ.get("BATCH", "30"))
 PERIOD = float(os.environ.get("PERIOD", "5"))
 
@@ -127,7 +127,7 @@ def post(path, body):
     req = urllib.request.Request(URL + path, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json",
                                           **({"Authorization": "Bearer " + TOKEN} if TOKEN else {})})
-    # Reviewed: OSCILYX_URL of the demo's own Oscilyx.
+    # Reviewed: NEBULENS_URL of the demo's own NebuLens.
     with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310
         return r.status
 

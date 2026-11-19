@@ -1,4 +1,4 @@
-{{- if include "oscilyx.serverEnabled" . }}
+{{- if include "nebulens.serverEnabled" . }}
 {{- if .Values.highAvailability.podDisruptionBudget.enabled }}
 {{- if lt (int .Values.replicaCount) 2 }}
 {{- fail "highAvailability.podDisruptionBudget.enabled requires replicaCount >= 2 (a budget over a single replica would block every node drain)." }}
@@ -6,11 +6,11 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "oscilyx.fullname" . }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 spec:
   minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
   selector:
-    matchLabels: {{- include "oscilyx.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- include "nebulens.selectorLabels" . | nindent 6 }}
 {{- end }}
 {{- end }}

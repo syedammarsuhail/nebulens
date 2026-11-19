@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Oscilyx release gate: run before every push or release. Stops at the first failing check and exits non-zero.
+# NebuLens release gate: run before every push or release. Stops at the first failing check and exits non-zero.
 #
 #   bash scripts/release-check.sh            # from the package / repository root
 #
 # Checks:
-#   1. tests          the full pytest suite (SQLite; set OSCILYX_TEST_PG_URL to also prove Postgres)
+#   1. tests          the full pytest suite (SQLite; set NEBULENS_TEST_PG_URL to also prove Postgres)
 #   2. dependencies   pip-audit against requirements.lock (the exact versions the image installs): no known CVEs
 #   3. code scan      bandit on the Python code, medium severity and above. B608 (SQL built with f-strings) is skipped because
 #                     every interpolated value was reviewed by hand: they are table / column names from fixed lists and
@@ -27,7 +27,7 @@ step() { printf '\n=== %s ===\n' "$*"; }
 fail() { printf '\nRELEASE CHECK FAILED: %s\n' "$*" >&2; exit 1; }
 
 step "1/7 tests"
-OSCILYX_CACHE_TTL=0 "$PY" -m pytest tests -q -p no:cacheprovider || fail "tests"
+NEBULENS_CACHE_TTL=0 "$PY" -m pytest tests -q -p no:cacheprovider || fail "tests"
 
 step "2/7 dependencies (pip-audit)"
 VENV=.release-check/venv
@@ -57,9 +57,9 @@ if [ -d enterprise ] || find . -path ./.git -prune -o -name 'keygen.py' -print |
 echo "none present"
 
 step "6/7 helm"
-helm lint helm/oscilyx --set auth.token=release-check-token-0123456789abcdef >/dev/null || fail "helm lint"
-for f in helm/oscilyx/values-*.yaml; do
-  helm template oscilyx helm/oscilyx -n observability -f "$f" --set auth.token=release-check-token-0123456789abcdef >/dev/null || fail "helm template $f"
+helm lint helm/nebulens --set auth.token=release-check-token-0123456789abcdef >/dev/null || fail "helm lint"
+for f in helm/nebulens/values-*.yaml; do
+  helm template nebulens helm/nebulens -n observability -f "$f" --set auth.token=release-check-token-0123456789abcdef >/dev/null || fail "helm template $f"
 done
 echo "chart lints and every overlay renders"
 

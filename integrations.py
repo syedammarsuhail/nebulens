@@ -32,11 +32,11 @@ def _svc(title, signal, type_="area", service="", w=6, h=3):
 
 # --------------------------------------------------------------- Kubernetes ---
 K8S_SETUP = [
-    {"kind": "intro", "text": "The Oscilyx collector (DaemonSet + cluster-collector) already scrapes node, kubelet and pod metrics on install. For *automatic application* instrumentation, add the OpenTelemetry Operator and annotate workloads."},
-    {"kind": "command", "label": "Enable the OpenTelemetry Operator in your Oscilyx chart (one-time)",
-     "code": "helm -n observability upgrade oscilyx ./helm/oscilyx \\\n  --reset-then-reuse-values --set opentelemetry-operator.enabled=true --wait"},
+    {"kind": "intro", "text": "The NebuLens collector (DaemonSet + cluster-collector) already scrapes node, kubelet and pod metrics on install. For *automatic application* instrumentation, add the OpenTelemetry Operator and annotate workloads."},
+    {"kind": "command", "label": "Enable the OpenTelemetry Operator in your NebuLens chart (one-time)",
+     "code": "helm -n observability upgrade nebulens ./helm/nebulens \\\n  --reset-then-reuse-values --set opentelemetry-operator.enabled=true --wait"},
     {"kind": "command", "label": "Then annotate a workload to inject the OpenTelemetry Java agent (no image change)",
-     "code": "kubectl -n <namespace> patch deployment <name> -p \\\n  '{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"instrumentation.opentelemetry.io/inject-java\":\"observability/oscilyx\"}}}}}'"},
+     "code": "kubectl -n <namespace> patch deployment <name> -p \\\n  '{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"instrumentation.opentelemetry.io/inject-java\":\"observability/nebulens\"}}}}}'"},
     {"kind": "note", "text": "Replace `inject-java` with `inject-python`, `inject-nodejs`, `inject-dotnet` or `inject-go` for other languages. The operator restarts the pod once with the agent injected."},
 ]
 
@@ -82,7 +82,7 @@ INTEGRATIONS = [
             {"kind": "command", "label": "Download the agent",
              "code": "curl -LO https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar"},
             {"kind": "command", "label": "Then start your app with it",
-             "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://oscilyx-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nOTEL_LOGS_EXPORTER=otlp \\\njava -javaagent:opentelemetry-javaagent.jar -jar my-app.jar"},
+             "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nOTEL_LOGS_EXPORTER=otlp \\\njava -javaagent:opentelemetry-javaagent.jar -jar my-app.jar"},
         ],
         "detect": {"attributes": ["telemetry.sdk.language"],
                    "metric_names": ["jvm.memory.used", "jvm.gc.duration", "jvm.thread.count"]},
@@ -110,7 +110,7 @@ INTEGRATIONS = [
             {"kind": "command", "label": "Install",
              "code": "npm install @opentelemetry/api @opentelemetry/auto-instrumentations-node"},
             {"kind": "command", "label": "Start your app with it",
-             "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://oscilyx-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nnode --require @opentelemetry/auto-instrumentations-node/register app.js"},
+             "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nnode --require @opentelemetry/auto-instrumentations-node/register app.js"},
         ],
         "detect": {"attributes": ["telemetry.sdk.language"],
                    "metric_names": ["nodejs.eventloop.lag", "v8js.heap.space.used_size"]},
@@ -134,7 +134,7 @@ INTEGRATIONS = [
             {"kind": "command", "label": "Install",
              "code": "pip install opentelemetry-distro opentelemetry-exporter-otlp-proto-http\nopentelemetry-bootstrap --action=install"},
             {"kind": "command", "label": "Start your app with it",
-             "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://oscilyx-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nOTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true \\\nopentelemetry-instrument python app.py"},
+             "code": "OTEL_SERVICE_NAME=my-app \\\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319 \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\nOTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true \\\nopentelemetry-instrument python app.py"},
         ],
         "detect": {"attributes": ["telemetry.sdk.language"],
                    "metric_names": ["process.runtime.cpython.memory", "process.runtime.cpython.gc_count"]},
@@ -154,7 +154,7 @@ INTEGRATIONS = [
         "id": "postgres", "name": "PostgreSQL", "icon": "metrics", "category": "Databases",
         "description": "Connections, transactions, locks and replication lag via the OpenTelemetry Postgres receiver.",
         "setup": "scrape", "setup_blocks": [
-            {"kind": "intro", "text": "The Oscilyx cluster-collector already has an OTel Collector. Add a postgresql receiver pointing at your database."},
+            {"kind": "intro", "text": "The NebuLens cluster-collector already has an OTel Collector. Add a postgresql receiver pointing at your database."},
             {"kind": "command", "label": "Add to the collector config",
              "code": "receivers:\n  postgresql:\n    endpoint: db.default.svc.cluster.local:5432\n    username: ${env:PG_USER}\n    password: ${env:PG_PASSWORD}\n    databases: [postgres]\n    collection_interval: 60s\nservice:\n  pipelines:\n    metrics:\n      receivers: [otlp, postgresql]"},
             {"kind": "note", "text": "Grant the user: `GRANT pg_monitor TO <user>;` (PostgreSQL 10+)."},
@@ -249,11 +249,11 @@ INTEGRATIONS = [
     # --------------------------------------------------------------- Browser RUM ---
     {
         "id": "browser-rum", "name": "Browser (RUM)", "icon": "globe", "category": "Frontends",
-        "description": "Core Web Vitals, uncaught errors and slow network calls from the browser. Uses the Oscilyx RUM SDK (8 KB, no dependencies).",
+        "description": "Core Web Vitals, uncaught errors and slow network calls from the browser. Uses the NebuLens RUM SDK (8 KB, no dependencies).",
         "setup": "sdk", "setup_blocks": [
             {"kind": "command", "label": "Add the script to your site",
-             "code": '<script src="{BASE_URL}/sdk/oscilyx-rum.js"\n        data-endpoint="{BASE_URL}"\n        data-service="my-web-app"\n        data-env="production"></script>'},
-            {"kind": "note", "text": "Set `data-token` if the page is hosted on a different domain than Oscilyx. Set `data-sample=\"0.2\"` to sample 20% of visitors."},
+             "code": '<script src="{BASE_URL}/sdk/nebulens-rum.js"\n        data-endpoint="{BASE_URL}"\n        data-service="my-web-app"\n        data-env="production"></script>'},
+            {"kind": "note", "text": "Set `data-token` if the page is hosted on a different domain than NebuLens. Set `data-sample=\"0.2\"` to sample 20% of visitors."},
         ],
         "detect": {"attributes": ["telemetry.sdk.name", "event.name"], "metric_names": []},
         "dashboards": [

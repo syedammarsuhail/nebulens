@@ -1,4 +1,4 @@
-/* Oscilyx service-map kit: graph building, grouping and layered layout. Pure functions (no DOM),
+/* NebuLens service-map kit: graph building, grouping and layered layout. Pure functions (no DOM),
    usable in the browser (window.MapKit) and in Node (module.exports) so it can be unit-tested.
    Every loop is bounded by V+E (cycles are broken before layering), so no input can hang the page. */
 (function (root) {

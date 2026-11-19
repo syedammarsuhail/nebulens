@@ -1,6 +1,6 @@
 """Demo 'frontend' service: FastAPI app that proxies calls to the backend.
 
-Auto-instrumented via opentelemetry-instrument - sends OTLP to Oscilyx.
+Auto-instrumented via opentelemetry-instrument - sends OTLP to NebuLens.
 """
 import os, random, time, logging
 import httpx

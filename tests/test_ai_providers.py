@@ -4,8 +4,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 from conftest import AUTH
 
-AI_VARS = ("OSCILYX_AI_PROVIDER", "OSCILYX_AI_API_KEY", "OSCILYX_AI_BASE_URL", "OSCILYX_AI_MODEL", "OSCILYX_AI_NAME",
-           "OSCILYX_AI_KEY_HEADER", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+AI_VARS = ("NEBULENS_AI_PROVIDER", "NEBULENS_AI_API_KEY", "NEBULENS_AI_BASE_URL", "NEBULENS_AI_MODEL", "NEBULENS_AI_NAME",
+           "NEBULENS_AI_KEY_HEADER", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
 
 
 @pytest.fixture
@@ -21,19 +21,19 @@ def test_provider_selection(srv, no_ai):
     assert srv._ai_provider() == "anthropic" and srv._ai_ready()[0] and srv._ai_name() == "Claude"
     assert srv._ai_model() == "claude-sonnet-5-5"
     no_ai.delenv("ANTHROPIC_API_KEY")
-    no_ai.setenv("OSCILYX_AI_BASE_URL", "http://ollama.local:11434/v1")  # local server: no key needed, but a model is
-    assert srv._ai_provider() == "openai" and srv._ai_ready() == (False, "set OSCILYX_AI_MODEL to the model name your endpoint serves")
-    no_ai.setenv("OSCILYX_AI_MODEL", "llama3.1")
+    no_ai.setenv("NEBULENS_AI_BASE_URL", "http://ollama.local:11434/v1")  # local server: no key needed, but a model is
+    assert srv._ai_provider() == "openai" and srv._ai_ready() == (False, "set NEBULENS_AI_MODEL to the model name your endpoint serves")
+    no_ai.setenv("NEBULENS_AI_MODEL", "llama3.1")
     assert srv._ai_ready() == (True, "") and srv._ai_name() == "AI model"
-    no_ai.setenv("OSCILYX_AI_NAME", "Llama 3.1 on Ollama")
+    no_ai.setenv("NEBULENS_AI_NAME", "Llama 3.1 on Ollama")
     assert srv._ai_name() == "Llama 3.1 on Ollama"
-    no_ai.setenv("OSCILYX_AI_PROVIDER", "off")
+    no_ai.setenv("NEBULENS_AI_PROVIDER", "off")
     assert srv._ai_provider() == ""
 
 
 def test_openai_cloud_needs_a_key(srv, no_ai):
-    no_ai.setenv("OSCILYX_AI_PROVIDER", "openai")
-    no_ai.setenv("OSCILYX_AI_MODEL", "some-model")
+    no_ai.setenv("NEBULENS_AI_PROVIDER", "openai")
+    no_ai.setenv("NEBULENS_AI_MODEL", "some-model")
     assert srv._ai_ready()[0] is False                               # api.openai.com without a key
     no_ai.setenv("OPENAI_API_KEY", "sk-x")
     assert srv._ai_ready() == (True, "") and srv._ai_name() == "OpenAI"
@@ -73,10 +73,10 @@ def test_openai_compatible_tool_loop_end_to_end(client, ingest, no_ai):
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
         _FakeOpenAI.seen.clear()
-        no_ai.setenv("OSCILYX_AI_PROVIDER", "openai")
-        no_ai.setenv("OSCILYX_AI_BASE_URL", f"http://127.0.0.1:{httpd.server_port}/v1")
-        no_ai.setenv("OSCILYX_AI_MODEL", "local-model")
-        no_ai.setenv("OSCILYX_AI_API_KEY", "secret-key-123")
+        no_ai.setenv("NEBULENS_AI_PROVIDER", "openai")
+        no_ai.setenv("NEBULENS_AI_BASE_URL", f"http://127.0.0.1:{httpd.server_port}/v1")
+        no_ai.setenv("NEBULENS_AI_MODEL", "local-model")
+        no_ai.setenv("NEBULENS_AI_API_KEY", "secret-key-123")
         st = client.get("/api/assistant/status", headers=AUTH).json()
         assert st["enabled"] and st["mode"] == "llm" and st["provider"] == "openai" and st["model"] == "local-model"
         r = client.post("/api/assistant", json={"messages": [{"role": "user", "content": "which services are up?"}]}, headers=AUTH)
@@ -108,11 +108,11 @@ def test_azure_style_key_header_and_errors_hide_the_key(srv, no_ai, monkeypatch)
     httpd = HTTPServer(("127.0.0.1", 0), Boom)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     try:
-        no_ai.setenv("OSCILYX_AI_PROVIDER", "azure")
-        no_ai.setenv("OSCILYX_AI_BASE_URL", f"http://127.0.0.1:{httpd.server_port}/openai/v1")
-        no_ai.setenv("OSCILYX_AI_MODEL", "my-deployment")
-        no_ai.setenv("OSCILYX_AI_API_KEY", "secret-key-xyz")
-        no_ai.setenv("OSCILYX_AI_KEY_HEADER", "api-key")
+        no_ai.setenv("NEBULENS_AI_PROVIDER", "azure")
+        no_ai.setenv("NEBULENS_AI_BASE_URL", f"http://127.0.0.1:{httpd.server_port}/openai/v1")
+        no_ai.setenv("NEBULENS_AI_MODEL", "my-deployment")
+        no_ai.setenv("NEBULENS_AI_API_KEY", "secret-key-xyz")
+        no_ai.setenv("NEBULENS_AI_KEY_HEADER", "api-key")
         evs = list(srv._assistant_events([{"role": "user", "content": "hi"}]))
         h = {k.lower(): v for k, v in seen["h"].items()}             # HTTP header names are case-insensitive
         assert h.get("api-key") == "secret-key-xyz" and "authorization" not in h
@@ -123,9 +123,9 @@ def test_azure_style_key_header_and_errors_hide_the_key(srv, no_ai, monkeypatch)
 
 
 def _local_model(no_ai, port):
-    no_ai.setenv("OSCILYX_AI_PROVIDER", "openai")
-    no_ai.setenv("OSCILYX_AI_BASE_URL", f"http://127.0.0.1:{port}/v1")
-    no_ai.setenv("OSCILYX_AI_MODEL", "local-model")
+    no_ai.setenv("NEBULENS_AI_PROVIDER", "openai")
+    no_ai.setenv("NEBULENS_AI_BASE_URL", f"http://127.0.0.1:{port}/v1")
+    no_ai.setenv("NEBULENS_AI_MODEL", "local-model")
 
 
 def test_community_gets_a_daily_allowance_then_an_upgrade_prompt(srv, client, no_ai):

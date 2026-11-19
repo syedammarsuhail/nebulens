@@ -59,7 +59,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r requirements.lock -r requirements-dev.txt pytest-cov
-      - run: OSCILYX_CACHE_TTL=0 python -m pytest tests -q --cov=. --cov-report=xml:coverage.xml
+      - run: NEBULENS_CACHE_TTL=0 python -m pytest tests -q --cov=. --cov-report=xml:coverage.xml
       - name: SonarCloud scan (waits for the quality gate)
         uses: SonarSource/sonarqube-scan-action@v5
         env:

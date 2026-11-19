@@ -1,6 +1,6 @@
-# Oscilyx
+# NebuLens
 
-**The oscilloscope for your microservices.** Self-hosted, OpenTelemetry-native observability: traces, logs and metrics
+**A clear lens on your microservices.** Self-hosted, OpenTelemetry-native observability: traces, logs and metrics
 from every service, shown as live signals so you see traffic waves, latency spikes and error bursts the moment they happen.
 
 One OTLP endpoint (`:4318`), one web UI, your own infrastructure. No per-host or per-GB pricing, and your telemetry never leaves
@@ -14,7 +14,7 @@ your network.
 - **Kubernetes:** clusters, nodes, workloads and pods, with CPU and memory, from a collector the Helm chart installs.
 - **Dashboards, alerts, SLOs and synthetic checks,** with a template library.
 - **Live Insights:** anomalies and regressions, found automatically.
-- **Ask Oscilyx:** an AI assistant that explains what changed and why. Works with Claude, OpenAI or any OpenAI-compatible model,
+- **Ask NebuLens:** an AI assistant that explains what changed and why. Works with Claude, OpenAI or any OpenAI-compatible model,
   and falls back to rule-based analysis with no key.
 - **Browser monitoring:** page views, JavaScript errors and slow requests from real users, with a 5 KB script.
 - **SSO and roles** (OIDC; viewer, editor, admin) and an audit log.
@@ -40,9 +40,9 @@ python server.py                     # UI and OTLP endpoint on http://localhost:
 On Kubernetes:
 
 ```bash
-docker build -t <your-registry>/oscilyx:11.0 . && docker push <your-registry>/oscilyx:11.0
-helm install oscilyx ./helm/oscilyx -n observability --create-namespace \
-  --set image.repository=<your-registry>/oscilyx --set-string image.tag=11.0 \
+docker build -t <your-registry>/nebulens:11.1 . && docker push <your-registry>/nebulens:11.1
+helm install nebulens ./helm/nebulens -n observability --create-namespace \
+  --set image.repository=<your-registry>/nebulens --set-string image.tag=11.1 \
   --set auth.token=$(openssl rand -hex 24)
 ```
 
@@ -68,11 +68,11 @@ vulnerability privately through GitHub security advisories, not in a public issu
 ```bash
 pip install -r requirements-dev.txt
 pytest                                                         # SQLite
-OSCILYX_TEST_PG_URL=postgresql://user:pw@host/db pytest         # the same suite on Postgres
+NEBULENS_TEST_PG_URL=postgresql://user:pw@host/db pytest         # the same suite on Postgres
 bash scripts/release-check.sh                                  # the full release gate
 ```
 
-Layout: `server.py` (API, ingest and storage), `static/` (the web UI, no build step), `helm/oscilyx/` (Kubernetes chart),
+Layout: `server.py` (API, ingest and storage), `static/` (the web UI, no build step), `helm/nebulens/` (Kubernetes chart),
 `deploy/vm/` (Compose, collector and systemd files), `scripts/` (smoke test, release gate, demo helpers), `tests/`.
 
 ## License

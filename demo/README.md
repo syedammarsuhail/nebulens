@@ -1,6 +1,6 @@
-# Oscilyx Demo Stack
+# NebuLens Demo Stack
 
-A two-service microservice app (`frontend` → `backend`) plus a load generator, all auto-instrumented with OpenTelemetry Python, that spins up alongside Oscilyx.
+A two-service microservice app (`frontend` → `backend`) plus a load generator, all auto-instrumented with OpenTelemetry Python, that spins up alongside NebuLens.
 
 ## Run
 
@@ -25,11 +25,11 @@ Then open **http://localhost:4318** and you will see:
 # 1. Build + load the images (or push to your registry)
 docker compose build
 
-# 2. Install Oscilyx via Helm
-helm install oscilyx ../helm/oscilyx --create-namespace -n observability
+# 2. Install NebuLens via Helm
+helm install nebulens ../helm/nebulens --create-namespace -n observability
 
 # 3. Deploy the demo apps, pointing OTLP at the bundled collector
 kubectl apply -f k8s-demo.yaml
 ```
 
-The bundled Oscilyx Helm chart ships an OpenTelemetry Collector DaemonSet, so pod logs and node/cluster metrics will also flow in automatically. See the generated NOTES.txt from `helm install` for endpoints.
+The bundled NebuLens Helm chart ships an OpenTelemetry Collector DaemonSet, so pod logs and node/cluster metrics will also flow in automatically. See the generated NOTES.txt from `helm install` for endpoints.

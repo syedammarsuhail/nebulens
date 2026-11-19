@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Oscilyx auto-injection.
+"""NebuLens auto-injection.
 
 Annotates workloads so the OpenTelemetry Operator injects the right language agent. Replaces
 running scripts/instrument.sh by hand for every deployment.
@@ -9,8 +9,8 @@ Design rules:
   * Language comes from an explicit override first, then from the pod spec. Anything it cannot
     classify with confidence is SKIPPED and reported, never guessed (a wrong agent crash-loops pods).
   * Skips workloads that already carry an inject annotation or another APM agent.
-  * Opt-out per workload with the label  oscilyx.io/instrument: "false".
-  * Explicit language per workload with the label  oscilyx.io/language: <java|dotnet|python|nodejs|go>.
+  * Opt-out per workload with the label  nebulens.io/instrument: "false".
+  * Explicit language per workload with the label  nebulens.io/language: <java|dotnet|python|nodejs|go>.
   * maxChangesPerRun caps how many workloads are touched per run, so restarts are staggered.
   * dryRun (default true) only logs what it would change.
 
@@ -116,7 +116,7 @@ def decide(ns, workload):
     ann = (tpl.get("metadata") or {}).get("annotations") or {}
     containers = tpl["spec"].get("containers") or []
 
-    if (labels.get("oscilyx.io/instrument", labels.get("pulse0.io/instrument")) == "false"   # old label still honoured
+    if (labels.get("nebulens.io/instrument", labels.get("pulse0.io/instrument")) == "false"   # old label still honoured
             or name in EXCLUDE or key in EXCLUDE):
         return None, "opted out"
     present = [k for k in ann if k.startswith(PREFIX)]
@@ -126,15 +126,15 @@ def decide(ns, workload):
         return None, "no containers"
     first = containers[0]
 
-    lang = OVERRIDES.get(key) or labels.get("oscilyx.io/language") or labels.get("pulse0.io/language")
+    lang = OVERRIDES.get(key) or labels.get("nebulens.io/language") or labels.get("pulse0.io/language")
     if not lang:
         hits = detect(first)
         if len(hits) == 1:
             lang = next(iter(hits))
         elif not hits:
-            return None, "language unknown (set label oscilyx.io/language)"
+            return None, "language unknown (set label nebulens.io/language)"
         else:
-            return None, "ambiguous: %s (set label oscilyx.io/language)" % "/".join(sorted(hits))
+            return None, "ambiguous: %s (set label nebulens.io/language)" % "/".join(sorted(hits))
     if lang not in LANGS:
         return None, "invalid language '%s'" % lang
     if has_other_agent(first):

@@ -1,23 +1,23 @@
-/* Oscilyx design system - top bar + icon rail layout, light/dark tokens */
+/* NebuLens design system - top bar + icon rail layout, light/dark tokens */
 :root,[data-theme="dark"]{
-  --bg:#0c1117;--surface:#121821;--surface-2:#171f2a;--surface-3:#1e2733;--line:#252f3c;--line-2:#313d4c;
-  --text:#e6ebf1;--text-2:#a7b2bf;--text-3:#7a8594;
-  --accent:#22b5d3;--accent-2:#7fd6ea;--accent-bg:rgba(34,181,211,.13);--on-accent:#06232b;
-  --ok:#3cc68a;--ok-bg:rgba(60,198,138,.12);--warn:#e6a73a;--warn-bg:rgba(230,167,58,.13);
-  --err:#f0646f;--err-bg:rgba(240,100,111,.13);--info:#6c9eff;--info-bg:rgba(108,158,255,.13);
-  --shadow:0 10px 36px rgba(0,0,0,.42);--code:#0e141c;
-  --c1:#22b5d3;--c2:#6c9eff;--c3:#e6a73a;--c4:#a78bfa;--c5:#3cc68a;--c6:#f08a5d;--c7:#e879a6;--c8:#94b8c9;
+  --bg:#0b0d16;--surface:#11141f;--surface-2:#161a27;--surface-3:#1d2231;--line:#252a3b;--line-2:#30364a;
+  --text:#e7e9f3;--text-2:#a9aec4;--text-3:#7c8199;
+  --accent:#7a6af0;--accent-2:#a99ff8;--accent-bg:rgba(122,106,240,.15);--on-accent:#ffffff;
+  --ok:#3ec98e;--ok-bg:rgba(62,201,142,.12);--warn:#e9ab3e;--warn-bg:rgba(233,171,62,.13);
+  --err:#f2656f;--err-bg:rgba(242,101,111,.13);--info:#5aa9f5;--info-bg:rgba(90,169,245,.13);
+  --shadow:0 10px 36px rgba(0,0,0,.45);--code:#0d1019;
+  --c1:#8b7cf6;--c2:#4fb3f2;--c3:#e9ab3e;--c4:#3ec98e;--c5:#e879b9;--c6:#f08a5d;--c7:#5fd1c4;--c8:#a3acc9;
   --mono:ui-monospace,SFMono-Regular,"Cascadia Code",Menlo,Consolas,monospace;
   --sans:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
 }
 [data-theme="light"]{
-  --bg:#f4f6f8;--surface:#ffffff;--surface-2:#f8fafb;--surface-3:#eef1f4;--line:#e0e5ea;--line-2:#cbd3dc;
-  --text:#111a24;--text-2:#4a5664;--text-3:#717c8a;
-  --accent:#0b7a93;--accent-2:#0b7a93;--accent-bg:rgba(11,122,147,.09);--on-accent:#ffffff;
+  --bg:#f5f5fa;--surface:#ffffff;--surface-2:#f9f9fc;--surface-3:#eff0f6;--line:#e2e3ee;--line-2:#cfd1e0;
+  --text:#14152b;--text-2:#4b4e68;--text-3:#737690;
+  --accent:#5b4bd6;--accent-2:#5b4bd6;--accent-bg:rgba(91,75,214,.09);--on-accent:#ffffff;
   --ok:#14804f;--ok-bg:rgba(20,128,79,.10);--warn:#a8620a;--warn-bg:rgba(168,98,10,.11);
-  --err:#c42b37;--err-bg:rgba(196,43,55,.09);--info:#2f5fd0;--info-bg:rgba(47,95,208,.09);
-  --shadow:0 8px 30px rgba(17,26,36,.12);--code:#f1f4f7;
-  --c1:#0b7a93;--c2:#2f5fd0;--c3:#b7790f;--c4:#7c5cd6;--c5:#14804f;--c6:#d0602c;--c7:#c2477e;--c8:#5f7f8f;
+  --err:#c42b37;--err-bg:rgba(196,43,55,.09);--info:#1f6fc4;--info-bg:rgba(31,111,196,.09);
+  --shadow:0 8px 30px rgba(20,21,43,.12);--code:#f2f2f8;
+  --c1:#5b4bd6;--c2:#1f86c9;--c3:#b7790f;--c4:#14804f;--c5:#c2477e;--c6:#d0602c;--c7:#128a80;--c8:#6b7190;
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
@@ -33,9 +33,9 @@ button,input,select,textarea{font:inherit;color:var(--text)}
 /* ---- top bar */
 #top{height:54px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--line);z-index:30}
 .brand{display:flex;align-items:center;gap:9px;font-size:15.5px;letter-spacing:.2px;padding-right:6px}
-/* Oscilyx mark: a heartbeat (ECG) trace on the brand gradient */
-.logo{width:24px;height:24px;flex:none;border-radius:7px;background:linear-gradient(135deg,#1593b0,#22b5d3);display:grid;place-items:center;box-shadow:0 0 8px rgba(34,181,211,.30)}
-.logo svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+/* NebuLens mark: a heartbeat (ECG) trace on the brand gradient */
+.logo{width:24px;height:24px;flex:none;border-radius:7px;background:linear-gradient(135deg,#8b5cf6,#3d6df2);display:grid;place-items:center;box-shadow:0 0 10px rgba(124,108,242,.38)}
+.logo svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.logo svg .core{fill:#fff;stroke:none}.logo svg .glint{stroke-width:1.6;opacity:.85}
 .search{flex:1;max-width:560px;display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;color:var(--text-3);cursor:text;text-align:left}
 .search:hover{border-color:var(--line-2)}.search svg{width:16px;height:16px;flex:none}.search span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 kbd{font:11px var(--mono);padding:1px 6px;border-radius:5px;border:1px solid var(--line-2);background:var(--surface);color:var(--text-3)}
@@ -410,7 +410,7 @@ body.community #rail a.gated .lock-badge{display:inline}
 
 
 /* ---- Kubernetes wizard: numbered steps that light up when their check passes. Dash0's pattern,
-   but with a visible evidence line that tells the user exactly what Oscilyx is seeing. */
+   but with a visible evidence line that tells the user exactly what NebuLens is seeing. */
 .k8s-wizard{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;max-width:860px}
 .k8s-step{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px;
   display:flex;flex-direction:column;gap:12px}
@@ -479,7 +479,7 @@ body.logs-focus .trial-banner,body.logs-focus .head{display:none}
 
 /* Pro marking for the AI assistant (AI answers are Pro; rule-based analysis is free) */
 .pro-tag.free{background:var(--surface-3);color:var(--accent-2);border:1px solid var(--accent)}
-.pro-tag{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;background:linear-gradient(135deg,#1593b0,#5b6fd6);color:#fff;white-space:nowrap}
+.pro-tag{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;background:linear-gradient(135deg,#7a6af0,#b45ad8);color:#fff;white-space:nowrap}
 .bubble.pro-card{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-bg),transparent 70%)}
 .pro-card .bh{display:flex;align-items:center;gap:8px}.pro-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 

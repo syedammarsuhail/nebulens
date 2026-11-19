@@ -1,4 +1,4 @@
-"""Oscilyx - a personal, OpenTelemetry-native observability tool.
+"""NebuLens - a personal, OpenTelemetry-native observability tool.
 
 Ingests OTLP (HTTP, JSON or protobuf) for traces, logs and metrics, stores them in
 SQLite, and serves a resource-centric UI: services (RED metrics), service map,
@@ -18,29 +18,34 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, Literal
 import uuid
 
-# Oscilyx was called Pulse0. OSCILYX_* settings are the ones to use; the old PULSE0_* names keep working (both directions,
-# so modules that still read a PULSE0_* name see a value set under the new name). When both are set, OSCILYX_* wins.
+# NebuLens was called Pulse0 (and, briefly in v11.0, Oscilyx). NEBULENS_* settings are the ones to use; the old PULSE0_* and
+# OSCILYX_* names keep working, in both directions so modules that still read an old name see a value set under the new
+# one. When several are set, NEBULENS_* wins, then OSCILYX_*, then PULSE0_*.
+_OLD_PREFIXES = ("OSCILYX_", "PULSE0_")
+for _p in _OLD_PREFIXES:
+    for _k in list(os.environ):
+        if _k.startswith(_p):
+            os.environ.setdefault("NEBULENS_" + _k[len(_p):], os.environ[_k])
 for _k in list(os.environ):
-    if _k.startswith("PULSE0_"):
-        os.environ.setdefault("OSCILYX_" + _k[len("PULSE0_"):], os.environ[_k])
-for _k in list(os.environ):
-    if _k.startswith("OSCILYX_"):
-        os.environ["PULSE0_" + _k[len("OSCILYX_"):]] = os.environ[_k]
+    if _k.startswith("NEBULENS_"):
+        for _p in _OLD_PREFIXES:
+            os.environ[_p + _k[len("NEBULENS_"):]] = os.environ[_k]
 
 
 def _legacy_db(path):
-    """An install upgraded from Pulse0 keeps its data in pulse0.db: use that file while no oscilyx.db exists beside it."""
-    if os.path.basename(path) == "oscilyx.db" and not os.path.exists(path):
-        old = os.path.join(os.path.dirname(path), "pulse0.db")
-        if os.path.exists(old):
-            return old
+    """An upgraded install keeps its data in oscilyx.db or pulse0.db: use that file while no nebulens.db exists beside it."""
+    if os.path.basename(path) == "nebulens.db" and not os.path.exists(path):
+        for old_name in ("oscilyx.db", "pulse0.db"):
+            old = os.path.join(os.path.dirname(path), old_name)
+            if os.path.exists(old):
+                return old
     return path
 
 
-DB_PATH = _legacy_db(os.environ.get("OSCILYX_DB", os.path.join(os.path.dirname(__file__), "oscilyx.db")))
-DATABASE_URL = os.environ.get("OSCILYX_DATABASE_URL", "")
+DB_PATH = _legacy_db(os.environ.get("NEBULENS_DB", os.path.join(os.path.dirname(__file__), "nebulens.db")))
+DATABASE_URL = os.environ.get("NEBULENS_DATABASE_URL", "")
 USE_PG = bool(DATABASE_URL)
-PG_SCHEMA = os.environ.get("OSCILYX_PG_SCHEMA", "")
+PG_SCHEMA = os.environ.get("NEBULENS_PG_SCHEMA", "")
 
 if USE_PG:
     import psycopg
@@ -50,24 +55,24 @@ if USE_PG:
 else:
     _IntegrityError = sqlite3.IntegrityError
 STATIC = os.path.join(os.path.dirname(__file__), "static")
-RETENTION_HOURS = float(os.environ.get("OSCILYX_RETENTION_HOURS", "72"))
+RETENTION_HOURS = float(os.environ.get("NEBULENS_RETENTION_HOURS", "72"))
 # Metrics are by far the largest table (every scrape of every node writes hundreds of rows), so they can be
-# kept for less time than logs and traces. 0 = same as OSCILYX_RETENTION_HOURS.
-METRICS_RETENTION_HOURS = float(os.environ.get("OSCILYX_METRICS_RETENTION_HOURS", "0") or 0)
+# kept for less time than logs and traces. 0 = same as NEBULENS_RETENTION_HOURS.
+METRICS_RETENTION_HOURS = float(os.environ.get("NEBULENS_METRICS_RETENTION_HOURS", "0") or 0)
 # Lowest log severity that is stored (OTel severity_number: 5 DEBUG, 9 INFO, 13 WARN, 17 ERROR, 21 FATAL).
 # 0 = store everything. 17 = errors only. Applied at ingest AFTER the level has been read from the log text, so
 # it also covers container logs that arrive with no severity at all (the collector cannot filter those).
-MIN_LOG_SEVERITY = int(os.environ.get("OSCILYX_MIN_LOG_SEVERITY", "0") or 0)
+MIN_LOG_SEVERITY = int(os.environ.get("NEBULENS_MIN_LOG_SEVERITY", "0") or 0)
 # Only used when MIN_LOG_SEVERITY > 0: what to do with a record whose level could not be determined even from
 # its text. "drop" (default) keeps the store errors-only; "keep" stores them and relies on the text parser.
-LOG_UNKNOWN_SEVERITY = (os.environ.get("OSCILYX_LOG_UNKNOWN_SEVERITY", "drop") or "drop").strip().lower()
-AUTH_TOKEN = os.environ.get("OSCILYX_TOKEN", "")  # optional bearer token for ingest + API
+LOG_UNKNOWN_SEVERITY = (os.environ.get("NEBULENS_LOG_UNKNOWN_SEVERITY", "drop") or "drop").strip().lower()
+AUTH_TOKEN = os.environ.get("NEBULENS_TOKEN", "")  # optional bearer token for ingest + API
 
 # ---------------------------------------------------------------- Tier / licensing
-# OSCILYX_TIER: "community" (free, limited) or "pro" (paid, unlimited).
-# A valid OSCILYX_LICENSE_KEY (validated by the enterprise module) activates Pro.
+# NEBULENS_TIER: "community" (free, limited) or "pro" (paid, unlimited).
+# A valid NEBULENS_LICENSE_KEY (validated by the enterprise module) activates Pro.
 # On first install, a 14-day Pro trial is activated automatically.
-_LICENSE_KEY = os.environ.get("OSCILYX_LICENSE_KEY", "")
+_LICENSE_KEY = os.environ.get("NEBULENS_LICENSE_KEY", "")
 _ENTERPRISE = False
 try:
     from enterprise.license import validate_license
@@ -84,7 +89,7 @@ _TRIAL_DAYS_LEFT = 0
 def _init_trial(db_path):
     """Check/initialize trial state from the meta table. Called after DB init."""
     global _TRIAL_START, _TRIAL_ACTIVE, _TRIAL_DAYS_LEFT, TIER, IS_PRO, RETENTION_HOURS
-    if _LICENSE_VALID or os.environ.get("OSCILYX_TIER", "").strip().lower() == "pro":
+    if _LICENSE_VALID or os.environ.get("NEBULENS_TIER", "").strip().lower() == "pro":
         return
     try:
         now = int(time.time())
@@ -110,26 +115,26 @@ def _init_trial(db_path):
         if _TRIAL_ACTIVE:
             TIER = "pro"
             IS_PRO = True
-            RETENTION_HOURS = float(os.environ.get("OSCILYX_RETENTION_HOURS", "72"))
+            RETENTION_HOURS = float(os.environ.get("NEBULENS_RETENTION_HOURS", "72"))
     except Exception:
         pass
 
-TIER = "pro" if _LICENSE_VALID else os.environ.get("OSCILYX_TIER", "community").strip().lower()
+TIER = "pro" if _LICENSE_VALID else os.environ.get("NEBULENS_TIER", "community").strip().lower()
 if TIER not in ("community", "pro"):
     TIER = "community"
 IS_PRO = TIER == "pro"
 def _print_tier():
     if IS_PRO and _ENTERPRISE and _LICENSE_VALID:
-        print(f"Oscilyx Pro activated (enterprise module, license validated)")
+        print(f"NebuLens Pro activated (enterprise module, license validated)")
     elif IS_PRO and _TRIAL_ACTIVE:
-        print(f"Oscilyx Pro trial ({_TRIAL_DAYS_LEFT} days remaining)")
+        print(f"NebuLens Pro trial ({_TRIAL_DAYS_LEFT} days remaining)")
     elif IS_PRO:
-        print("Oscilyx Pro activated (OSCILYX_TIER override)")
+        print("NebuLens Pro activated (NEBULENS_TIER override)")
     else:
         if _TRIAL_START and not _TRIAL_ACTIVE:
-            print("Oscilyx Community tier (Pro trial expired, set OSCILYX_LICENSE_KEY to upgrade)")
+            print("NebuLens Community tier (Pro trial expired, set NEBULENS_LICENSE_KEY to upgrade)")
         else:
-            print("Oscilyx Community tier (set OSCILYX_LICENSE_KEY to activate Pro)")
+            print("NebuLens Community tier (set NEBULENS_LICENSE_KEY to activate Pro)")
 
 # Community-tier limits (Pro is unlimited)
 TIER_LIMITS = {
@@ -158,7 +163,7 @@ def _tier_check(resource: str, table: str):
             {"error": "tier_limit",
              "message": f"Community tier allows up to {limit} {resource}. Upgrade to Pro for unlimited.",
              "limit": limit, "current": count, "tier": "community",
-             "upgrade_url": "https://oscilyx.dev/pricing"})
+             "upgrade_url": "https://nebulens.dev/pricing"})
 
 
 def _tier_gate(feature: str):
@@ -170,19 +175,19 @@ def _tier_gate(feature: str):
         {"error": "pro_required",
          "message": f"{feature} is available on the Pro tier. Upgrade to unlock.",
          "feature": feature, "tier": "community",
-         "upgrade_url": "https://oscilyx.dev/pricing"})
+         "upgrade_url": "https://nebulens.dev/pricing"})
 
-# Deployment mode. "selfhosted" (default) is the classic single-tenant Oscilyx: one SQLite file, optional
-# OSCILYX_TOKEN. "hosted" is Pulse-hosted multi-tenant: organizations -> projects (one SQLite silo each),
+# Deployment mode. "selfhosted" (default) is the classic single-tenant NebuLens: one SQLite file, optional
+# NEBULENS_TOKEN. "hosted" is Pulse-hosted multi-tenant: organizations -> projects (one SQLite silo each),
 # hashed API keys, per-org quotas. See the "hosted mode" section below.
-MODE = os.environ.get("OSCILYX_MODE", "selfhosted").strip().lower()
+MODE = os.environ.get("NEBULENS_MODE", "selfhosted").strip().lower()
 if MODE not in ("selfhosted", "hosted"):
-    raise RuntimeError("OSCILYX_MODE must be 'selfhosted' or 'hosted'")
+    raise RuntimeError("NEBULENS_MODE must be 'selfhosted' or 'hosted'")
 HOSTED = MODE == "hosted"
-ADMIN_TOKEN = os.environ.get("OSCILYX_ADMIN_TOKEN", "")  # bootstrap platform admin (hosted mode only)
-DATA_DIR = os.environ.get("OSCILYX_DATA_DIR", os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), "tenants"))
+ADMIN_TOKEN = os.environ.get("NEBULENS_ADMIN_TOKEN", "")  # bootstrap platform admin (hosted mode only)
+DATA_DIR = os.environ.get("NEBULENS_DATA_DIR", os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), "tenants"))
 if HOSTED and not ADMIN_TOKEN:
-    raise RuntimeError("OSCILYX_ADMIN_TOKEN is required when OSCILYX_MODE=hosted")
+    raise RuntimeError("NEBULENS_ADMIN_TOKEN is required when NEBULENS_MODE=hosted")
 
 def _jload(v):
     """json.loads that passes through dicts (Postgres JSONB returns dicts directly)."""
@@ -351,7 +356,7 @@ CREATE TABLE IF NOT EXISTS environments(
 -- Pro: which environments an SSO group may see. No row for a group = every environment.
 CREATE TABLE IF NOT EXISTS env_access(
   grp TEXT, slug TEXT, PRIMARY KEY (grp, slug));
--- Multi-cluster console: one row per remote cluster allowed to send telemetry to this Oscilyx. Each cluster has its
+-- Multi-cluster console: one row per remote cluster allowed to send telemetry to this NebuLens. Each cluster has its
 -- own ingest token, stored only as a SHA-256 hash; the plain token is shown once, when it is created or rotated.
 -- A cluster's telemetry is always stored under the environment whose slug equals the cluster slug.
 CREATE TABLE IF NOT EXISTS clusters(
@@ -422,7 +427,7 @@ def _open_db(path):
     c = sqlite3.connect(path, check_same_thread=False)
     c.row_factory = sqlite3.Row
     # Migrate BEFORE the schema script: it creates indexes on the env column, which would fail on a
-    # database written by an older Oscilyx and abort the whole script.
+    # database written by an older NebuLens and abort the whole script.
     _migrate_env_column(c)
     c.executescript(_SCHEMA)
     c.execute("INSERT OR IGNORE INTO rollup_state(key, value) VALUES('from_minute', ?)", (int(time.time() // 60),))
@@ -437,14 +442,18 @@ _pg_pool = None
 
 
 def _default_pg_schema():
-    """'oscilyx', or 'pulse0' when this database was filled by Pulse0 and has no oscilyx schema yet."""
+    """'nebulens', or the schema an older version filled ('oscilyx', then 'pulse0') while no nebulens schema exists."""
     try:
         with psycopg.connect(DATABASE_URL, connect_timeout=10) as c:
             have = {r[0] for r in c.execute("SELECT schema_name FROM information_schema.schemata "
-                                            "WHERE schema_name IN ('oscilyx', 'pulse0')").fetchall()}
-        return "pulse0" if "pulse0" in have and "oscilyx" not in have else "oscilyx"
+                                            "WHERE schema_name IN ('nebulens', 'oscilyx', 'pulse0')").fetchall()}
+        if "nebulens" not in have:
+            for old in ("oscilyx", "pulse0"):
+                if old in have:
+                    return old
+        return "nebulens"
     except Exception:
-        return "oscilyx"
+        return "nebulens"
 
 
 if USE_PG:
@@ -464,7 +473,7 @@ def _pg_ddl():
 
 if USE_PG:
     if not PG_SCHEMA.isidentifier():
-        raise RuntimeError("OSCILYX_PG_SCHEMA must be a plain identifier")
+        raise RuntimeError("NEBULENS_PG_SCHEMA must be a plain identifier")
     with _pg_pool.connection() as _c:
         _c.execute(f'CREATE SCHEMA IF NOT EXISTS "{PG_SCHEMA}"')
         _c.execute(_pg_ddl())
@@ -488,10 +497,10 @@ _print_tier()
 # Which SQLite silo the current request / worker iteration reads and writes. None = the default
 # (self-hosted) database. The hosted-mode auth middleware sets this from the API key's project, so
 # every query helper below (db/q) is tenant-scoped without touching any query code.
-_cur_db = contextvars.ContextVar("oscilyx_db", default=None)
+_cur_db = contextvars.ContextVar("nebulens_db", default=None)
 _tenants = collections.OrderedDict()  # path -> (conn, lock); small LRU of open project databases
 _tenants_guard = threading.Lock()
-MAX_OPEN_TENANTS = int(os.environ.get("OSCILYX_MAX_OPEN_PROJECTS", "64"))
+MAX_OPEN_TENANTS = int(os.environ.get("NEBULENS_MAX_OPEN_PROJECTS", "64"))
 
 
 def _handle():
@@ -574,7 +583,7 @@ def qcol(sql, args=()):
 # ---------------------------------------------------------------- heavy-read cache
 # Aggregates over the whole time window (services, map, insights, home) cost seconds at ~1M spans. Concurrent callers share one
 # computation (single-flight) and results live for CACHE_TTL seconds; a background warmer refreshes them while the UI is in use.
-CACHE_TTL = float(os.environ.get("OSCILYX_CACHE_TTL", "20"))
+CACHE_TTL = float(os.environ.get("NEBULENS_CACHE_TTL", "20"))
 _last_use = [0.0]
 _warming = threading.local()
 
@@ -636,9 +645,9 @@ def q(sql, args=()):
 # Regulated deployments must not persist card numbers, national IDs or credentials, which routinely
 # leak into log lines and span attributes. Redaction runs at ingest, BEFORE anything is written, so
 # the raw value never reaches the database or a backup of it.
-#   OSCILYX_REDACT=card,ssn,iban,email,jwt,apikey,phone   (default: card,ssn,iban,jwt,apikey)
-#   OSCILYX_REDACT=off                                    disable entirely
-#   OSCILYX_REDACT_CUSTOM='name=<regex>;name2=<regex>'    extra patterns, e.g. acct=\bACC-\d{8}\b
+#   NEBULENS_REDACT=card,ssn,iban,email,jwt,apikey,phone   (default: card,ssn,iban,jwt,apikey)
+#   NEBULENS_REDACT=off                                    disable entirely
+#   NEBULENS_REDACT_CUSTOM='name=<regex>;name2=<regex>'    extra patterns, e.g. acct=\bACC-\d{8}\b
 # Each match becomes <name:redacted>, so the shape of the log stays readable and searchable.
 _LUHN_RE = re.compile(r"(?<![\d-])(?:\d[ -]?){12,18}\d(?![\d-])")
 _PII_PATTERNS = {
@@ -650,7 +659,7 @@ _PII_PATTERNS = {
     "phone":  re.compile(r"(?<![\d-])\+?\d{1,3}[ -]?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}(?![\d-])"),
 }
 _REDACT_DEFAULT = "card,ssn,iban,jwt,apikey"
-_redact_names = [x.strip().lower() for x in os.environ.get("OSCILYX_REDACT", _REDACT_DEFAULT).split(",") if x.strip()]
+_redact_names = [x.strip().lower() for x in os.environ.get("NEBULENS_REDACT", _REDACT_DEFAULT).split(",") if x.strip()]
 REDACT_OFF = "off" in _redact_names or "none" in _redact_names
 _REDACT_RULES = []
 if not REDACT_OFF:
@@ -659,13 +668,13 @@ if not REDACT_OFF:
             _REDACT_RULES.append(("card", _LUHN_RE, True))
         elif _n in _PII_PATTERNS:
             _REDACT_RULES.append((_n, _PII_PATTERNS[_n], False))
-    for _spec in os.environ.get("OSCILYX_REDACT_CUSTOM", "").split(";"):
+    for _spec in os.environ.get("NEBULENS_REDACT_CUSTOM", "").split(";"):
         if "=" in _spec:
             _nm, _, _rx = _spec.partition("=")
             try:
                 _REDACT_RULES.append((_nm.strip()[:32] or "custom", re.compile(_rx), False))
             except re.error as _e:
-                print(f"invalid OSCILYX_REDACT_CUSTOM pattern for {_nm!r}: {_e}")
+                print(f"invalid NEBULENS_REDACT_CUSTOM pattern for {_nm!r}: {_e}")
 
 _redact_counts = collections.Counter()   # what was redacted, for the compliance report
 _REDACT_MAXLEN = 20000                   # don't scan unbounded blobs; they are truncated anyway
@@ -882,10 +891,10 @@ def _slug(*parts):
     return re.sub(r"[^a-zA-Z0-9._/-]+", "-", raw).strip("-/")[:120]
 
 
-# A human-friendly name for the cluster this Oscilyx runs in, when telemetry doesn't carry
-# k8s.cluster.name. Set via the chart (env.OSCILYX_CLUSTER_NAME) so every namespace in this cluster
+# A human-friendly name for the cluster this NebuLens runs in, when telemetry doesn't carry
+# k8s.cluster.name. Set via the chart (env.NEBULENS_CLUSTER_NAME) so every namespace in this cluster
 # rolls up to one environment named after the cluster.
-CLUSTER_NAME = os.environ.get("OSCILYX_CLUSTER_NAME", "").strip()
+CLUSTER_NAME = os.environ.get("NEBULENS_CLUSTER_NAME", "").strip()
 
 
 def _env_of(res):
@@ -952,13 +961,13 @@ def _env_flush():
 
 # Environments the current request may read. None = unrestricted. Set by the auth middleware from
 # the caller's SSO groups (Pro); every query helper that touches telemetry applies it.
-_cur_envs = contextvars.ContextVar("oscilyx_envs", default=None)
+_cur_envs = contextvars.ContextVar("nebulens_envs", default=None)
 
 # ---- Multi-cluster console --------------------------------------------------------------------------------------
 # A remote cluster sends its telemetry with its own token (p0c_...). The token decides which cluster the data belongs
 # to: the server overwrites k8s.cluster.name and files every record under that cluster's environment, so a sender can
 # neither claim another cluster's name nor write into another cluster's environment. Set by the ingest middleware.
-_cur_cluster = contextvars.ContextVar("oscilyx_cluster", default=None)
+_cur_cluster = contextvars.ContextVar("nebulens_cluster", default=None)
 CLUSTER_TOKEN_PREFIX = "p0c_"
 _CLUSTER_CACHE_TTL = 10.0     # seconds; a rotated, disabled or deleted token stops working within this on every replica
 _cluster_cache = {}           # token_hash -> (expires_monotonic, row or None)
@@ -1072,7 +1081,7 @@ def _res(rs):
     if cl:
         r["k8s.cluster.name"] = cl["name"]       # the token decides the cluster, whatever the sender claims
     elif CLUSTER_NAME and not r.get("k8s.cluster.name"):
-        r["k8s.cluster.name"] = CLUSTER_NAME     # this Oscilyx's own cluster: name it so the Kubernetes pages can group by it
+        r["k8s.cluster.name"] = CLUSTER_NAME     # this NebuLens's own cluster: name it so the Kubernetes pages can group by it
     return r.get("service.name", "unknown"), r
 
 
@@ -1135,7 +1144,7 @@ def _check_service_limit(svc_names: set):
              "current_services": sorted(_known_services),
              "rejected_services": sorted(new),
              "tier": "community",
-             "upgrade_url": "https://oscilyx.dev/pricing"})
+             "upgrade_url": "https://nebulens.dev/pricing"})
     # Remember services we just accepted, so a burst of new services inside the 60s cache window
     # cannot slip past the cap.
     _known_services = _known_services | svc_names
@@ -1295,11 +1304,11 @@ def _infer_severity(body):
     return 0, ""
 
 
-_below_min_dropped = [0]  # log records discarded by OSCILYX_MIN_LOG_SEVERITY, reported by /api/redaction
+_below_min_dropped = [0]  # log records discarded by NEBULENS_MIN_LOG_SEVERITY, reported by /api/redaction
 
 
 def _below_min_severity(sev):
-    """True when a record with this severity_number must not be stored under OSCILYX_MIN_LOG_SEVERITY."""
+    """True when a record with this severity_number must not be stored under NEBULENS_MIN_LOG_SEVERITY."""
     sev = int(sev or 0)
     if sev == 0:
         return LOG_UNKNOWN_SEVERITY != "keep"
@@ -1331,7 +1340,7 @@ def ingest_logs(d):
                     isev, itext = _infer_severity(body)
                     if isev:
                         sev, sev_text = isev, sev_text or itext
-                        attrs["oscilyx.severity.inferred"] = True
+                        attrs["nebulens.severity.inferred"] = True
                 if MIN_LOG_SEVERITY and _below_min_severity(sev):
                     _below_min_dropped[0] += 1   # not stored, and not reported as rejected (exporters must not retry)
                     continue
@@ -1445,7 +1454,7 @@ async def _lifespan(_app):
     yield
 
 
-app = FastAPI(title="Oscilyx", docs_url="/api/docs", redoc_url=None, lifespan=_lifespan)
+app = FastAPI(title="NebuLens", docs_url="/api/docs", redoc_url=None, lifespan=_lifespan)
 
 
 @app.middleware("http")
@@ -1499,9 +1508,9 @@ app.add_middleware(_IngestOnlyCORS, allow_origin_regex=".*", allow_credentials=T
                    allow_methods=["*"], allow_headers=["*"], expose_headers=["*"])
 
 # Baseline response headers. A Content-Security-Policy is deliberately not set here: the UI builds styles inline,
-# so a policy strict enough to matter needs testing in a real browser first. Set OSCILYX_ALLOW_FRAMING=1 only if
-# you embed Oscilyx in another page.
-_ALLOW_FRAMING = os.environ.get("OSCILYX_ALLOW_FRAMING", "").strip() == "1"
+# so a policy strict enough to matter needs testing in a real browser first. Set NEBULENS_ALLOW_FRAMING=1 only if
+# you embed NebuLens in another page.
+_ALLOW_FRAMING = os.environ.get("NEBULENS_ALLOW_FRAMING", "").strip() == "1"
 
 
 @app.middleware("http")
@@ -1513,7 +1522,7 @@ async def security_headers(request: Request, call_next):
     h.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
     if not _ALLOW_FRAMING:
         h.setdefault("X-Frame-Options", "DENY")
-    https = request.url.scheme == "https" or (os.environ.get("OSCILYX_TRUST_PROXY") == "1"
+    https = request.url.scheme == "https" or (os.environ.get("NEBULENS_TRUST_PROXY") == "1"
                                               and request.headers.get("x-forwarded-proto", "") == "https")
     if https:
         h.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -1653,15 +1662,15 @@ def k8s_workloads(minutes: float = 60, namespace: str = "", cluster: str = ""):
 @app.get("/api/kubernetes/wizard")
 def k8s_wizard():
     """Status of each setup step for the onboarding wizard. Progress is detected from real telemetry,
-    so a step turns green exactly when Oscilyx starts seeing the data that step is supposed to produce.
+    so a step turns green exactly when NebuLens starts seeing the data that step is supposed to produce.
     No guessing, no cluster API calls, no SSH — just: do we see what we expect to see?"""
     # Step 1: operator installed (defined as "we see telemetry at all in the observability namespace,
     # or a cluster-collector service.name that matches ours"). A newly-installed cluster passes this when
-    # the Oscilyx collector itself sends its first metric.
+    # the NebuLens collector itself sends its first metric.
     ov = k8s_overview(minutes=60)
     step1 = ov["nodes"] > 0 or ov["namespaces"] > 0
     # Step 2: at least one non-system namespace has signals (user's own workloads reaching the collector).
-    SYSTEM_NS = {"kube-system", "kube-public", "kube-node-lease", "observability", "oscilyx", "dash0-system"}
+    SYSTEM_NS = {"kube-system", "kube-public", "kube-node-lease", "observability", "nebulens", "dash0-system"}
     user_ns = [n for n in k8s_namespaces(minutes=60) if n["namespace"] not in SYSTEM_NS]
     step2 = len(user_ns) > 0
     # Step 3: at least one workload has telemetry.sdk.language set (i.e. agent-injected or SDK-instrumented).
@@ -1671,17 +1680,17 @@ def k8s_wizard():
 
     return {
         "steps": [
-            {"id": "install", "title": "Oscilyx collectors reporting",
+            {"id": "install", "title": "NebuLens collectors reporting",
              "description": "The bundled OpenTelemetry Collector DaemonSet forwards container logs plus node and Kubernetes metrics. Nothing to install here; this turns green when the collectors are sending.",
              "ok": step1, "evidence": f"{ov['nodes']} node{'s' if ov['nodes'] != 1 else ''} reporting"},
             {"id": "monitor-namespace", "title": "Workloads sending telemetry",
-             "description": "Any app outside the system namespaces that sends OTLP to Oscilyx or its collector shows up here. Existing SDKs only need the endpoint changed.",
+             "description": "Any app outside the system namespaces that sends OTLP to NebuLens or its collector shows up here. Existing SDKs only need the endpoint changed.",
              "ok": step2, "evidence": f"{len(user_ns)} user namespace{'s' if len(user_ns) != 1 else ''} with telemetry"},
             {"id": "instrument-workload", "title": "Instrument a workload (zero-code)",
              "description": "Enable the OpenTelemetry Operator once, then run scripts/instrument.sh for a Deployment. The pod restarts once with the language agent attached; no image rebuild.",
              "ok": step3, "evidence": f"{ov['instrumented_workloads']} instrumented workload{'s' if ov['instrumented_workloads'] != 1 else ''}"},
             {"id": "see-traces", "title": "See traces end-to-end",
-             "description": "Once the agent is attached and your app serves a request, spans arrive at Oscilyx and show up on the Traces page.",
+             "description": "Once the agent is attached and your app serves a request, spans arrive at NebuLens and show up on the Traces page.",
              "ok": step4, "evidence": "traces arriving" if step4 else "no traces yet"},
         ],
         "complete": step1 and step2 and step3 and step4,
@@ -1840,7 +1849,7 @@ def integrations_uninstall(iid: str):
 
 
 # ---------------------------------------------------------------- PromQL (subset)
-# A small, honest subset of PromQL, enough that Grafana dashboards, PromQL alerts and curl can query Oscilyx's
+# A small, honest subset of PromQL, enough that Grafana dashboards, PromQL alerts and curl can query NebuLens's
 # metrics without a translation layer. The real PromQL spec is bigger than this; what is supported:
 #   selector            m or m{label="v", other=~"regex"}   (operators: =, !=, =~, !~)
 #   range selector      m[5m]                               (seconds: s, minutes: m, hours: h, days: d)
@@ -2250,7 +2259,7 @@ def promql_query_range(query: str, start: float, end: float, step: float = 60):
 
 @app.get("/api/promql/labels")
 def promql_labels():
-    """List every label name Oscilyx knows about (for Grafana auto-complete)."""
+    """List every label name NebuLens knows about (for Grafana auto-complete)."""
     names = {"__name__", "service", "env"}
     for r in q("SELECT DISTINCT name FROM metrics LIMIT 2000"):
         pass  # names are the metric names list
@@ -2285,10 +2294,10 @@ def promql_label_values(name: str):
 
 
 # ---------------------------------------------------------------- SSO (OIDC) + RBAC (self-hosted)
-# Identity sources, checked in order: bearer OSCILYX_TOKEN (admin, unchanged), optional OSCILYX_READ_TOKEN (viewer), a signed
+# Identity sources, checked in order: bearer NEBULENS_TOKEN (admin, unchanged), optional NEBULENS_READ_TOKEN (viewer), a signed
 # session cookie issued after an OpenID Connect login, and - only when none of those is configured - open access (as before).
 # Roles: viewer (read) < editor (create/change dashboards, alerts, SLOs, synthetics) < admin (also the audit log).
-# /v1/* ingest is never session-authenticated: it needs OSCILYX_TOKEN or OSCILYX_INGEST_TOKEN when either is set.
+# /v1/* ingest is never session-authenticated: it needs NEBULENS_TOKEN or NEBULENS_INGEST_TOKEN when either is set.
 ROLE_RANK = {"viewer": 1, "editor": 2, "admin": 3}
 _SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
 
@@ -2299,35 +2308,35 @@ def _csv(name):
 
 def _load_oidc():
     cfg = dict(
-        issuer=os.environ.get("OSCILYX_OIDC_ISSUER", "").strip().rstrip("/"),
-        client_id=os.environ.get("OSCILYX_OIDC_CLIENT_ID", "").strip(),
-        client_secret=os.environ.get("OSCILYX_OIDC_CLIENT_SECRET", ""),
-        scopes=os.environ.get("OSCILYX_OIDC_SCOPES", "openid email profile"),
-        role_claim=os.environ.get("OSCILYX_OIDC_ROLE_CLAIM", "groups").strip(),
-        admin_groups=_csv("OSCILYX_OIDC_ADMIN_GROUPS"), editor_groups=_csv("OSCILYX_OIDC_EDITOR_GROUPS"),
-        viewer_groups=_csv("OSCILYX_OIDC_VIEWER_GROUPS"),
-        default_role=os.environ.get("OSCILYX_OIDC_DEFAULT_ROLE", "viewer").strip().lower(),
-        allowed_domains=[d.lower().lstrip("@") for d in _csv("OSCILYX_OIDC_ALLOWED_DOMAINS")],
-        redirect_url=os.environ.get("OSCILYX_OIDC_REDIRECT_URL", "").strip(),
-        session_ttl_h=float(os.environ.get("OSCILYX_SESSION_TTL_HOURS", "12")),
-        provider_name=os.environ.get("OSCILYX_OIDC_PROVIDER_NAME", "SSO").strip() or "SSO",
+        issuer=os.environ.get("NEBULENS_OIDC_ISSUER", "").strip().rstrip("/"),
+        client_id=os.environ.get("NEBULENS_OIDC_CLIENT_ID", "").strip(),
+        client_secret=os.environ.get("NEBULENS_OIDC_CLIENT_SECRET", ""),
+        scopes=os.environ.get("NEBULENS_OIDC_SCOPES", "openid email profile"),
+        role_claim=os.environ.get("NEBULENS_OIDC_ROLE_CLAIM", "groups").strip(),
+        admin_groups=_csv("NEBULENS_OIDC_ADMIN_GROUPS"), editor_groups=_csv("NEBULENS_OIDC_EDITOR_GROUPS"),
+        viewer_groups=_csv("NEBULENS_OIDC_VIEWER_GROUPS"),
+        default_role=os.environ.get("NEBULENS_OIDC_DEFAULT_ROLE", "viewer").strip().lower(),
+        allowed_domains=[d.lower().lstrip("@") for d in _csv("NEBULENS_OIDC_ALLOWED_DOMAINS")],
+        redirect_url=os.environ.get("NEBULENS_OIDC_REDIRECT_URL", "").strip(),
+        session_ttl_h=float(os.environ.get("NEBULENS_SESSION_TTL_HOURS", "12")),
+        provider_name=os.environ.get("NEBULENS_OIDC_PROVIDER_NAME", "SSO").strip() or "SSO",
     )
     if cfg["default_role"] not in ROLE_RANK and cfg["default_role"] not in ("", "none", "deny"):
-        raise RuntimeError("OSCILYX_OIDC_DEFAULT_ROLE must be viewer, editor, admin or none")
+        raise RuntimeError("NEBULENS_OIDC_DEFAULT_ROLE must be viewer, editor, admin or none")
     if cfg["default_role"] in ("none", "deny"):
         cfg["default_role"] = ""
     return cfg
 
 
 OIDC = _load_oidc()
-READ_TOKEN = os.environ.get("OSCILYX_READ_TOKEN", "")
-INGEST_TOKEN = os.environ.get("OSCILYX_INGEST_TOKEN", "")
+READ_TOKEN = os.environ.get("NEBULENS_READ_TOKEN", "")
+INGEST_TOKEN = os.environ.get("NEBULENS_INGEST_TOKEN", "")
 # Regulated buyers keep audit trails for years. 0 disables deletion entirely (keep forever).
-AUDIT_DAYS = float(os.environ.get("OSCILYX_AUDIT_RETENTION_DAYS", "90"))
+AUDIT_DAYS = float(os.environ.get("NEBULENS_AUDIT_RETENTION_DAYS", "90"))
 def _load_session_secret():
-    """OSCILYX_SESSION_SECRET if set. Otherwise a random secret kept in a 0600 file beside the SQLite database, so SSO
+    """NEBULENS_SESSION_SECRET if set. Otherwise a random secret kept in a 0600 file beside the SQLite database, so SSO
     sessions survive a restart (Postgres and read-only volumes fall back to a per-process secret)."""
-    env = os.environ.get("OSCILYX_SESSION_SECRET")
+    env = os.environ.get("NEBULENS_SESSION_SECRET")
     if env:
         return env.encode()
     if not USE_PG:
@@ -2358,10 +2367,10 @@ def sso_enabled():
 
 
 if sso_enabled():
-    if not os.environ.get("OSCILYX_SESSION_SECRET"):
-        print("warning: OSCILYX_SESSION_SECRET is not set; using a generated secret stored beside the database (set it explicitly when running more than one replica)")
+    if not os.environ.get("NEBULENS_SESSION_SECRET"):
+        print("warning: NEBULENS_SESSION_SECRET is not set; using a generated secret stored beside the database (set it explicitly when running more than one replica)")
     if not (AUTH_TOKEN or INGEST_TOKEN):
-        print("warning: SSO is on but /v1/* ingest has no token; set OSCILYX_TOKEN or OSCILYX_INGEST_TOKEN")
+        print("warning: SSO is on but /v1/* ingest has no token; set NEBULENS_TOKEN or NEBULENS_INGEST_TOKEN")
 
 
 def _b64(b):
@@ -2421,7 +2430,7 @@ def _identify(request):
         if _tok_eq(t, READ_TOKEN):
             return dict(actor="read-token", role="viewer", via="token")
     if sso_enabled():
-        sess = _unsign(request.cookies.get("ox_session", ""))
+        sess = _unsign(request.cookies.get("nl_session", ""))
         if sess and sess.get("role") in ROLE_RANK:
             return dict(actor=sess.get("email") or sess.get("sub", "?"), name=sess.get("name", ""), role=sess["role"],
                         via="session", groups=sess.get("grp") or [])
@@ -2430,8 +2439,8 @@ def _identify(request):
     return None
 
 
-AUDIT_READS = os.environ.get("OSCILYX_AUDIT_READS", "").strip().lower() in ("1", "true", "yes")
-AUDIT_SYSLOG = os.environ.get("OSCILYX_AUDIT_SYSLOG", "").strip()  # host:port[/udp|/tcp], e.g. siem:514/udp
+AUDIT_READS = os.environ.get("NEBULENS_AUDIT_READS", "").strip().lower() in ("1", "true", "yes")
+AUDIT_SYSLOG = os.environ.get("NEBULENS_AUDIT_SYSLOG", "").strip()  # host:port[/udp|/tcp], e.g. siem:514/udp
 _blank_dropped = [0]  # blank log lines discarded at ingest, reported by /api/redaction
 _audit_chain_lock = threading.Lock()
 _audit_prev = None  # hash of the newest audit row; loaded lazily so the chain survives restarts
@@ -2457,7 +2466,7 @@ def _audit_syslog(row):
         port = int(port or 514)
         # RFC 5424, facility 13 (log audit) severity 6 (informational) => priority 110
         msg = (f"<110>1 {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(row['ts'] / 1e9))} "
-               f"{socket.gethostname()} oscilyx - - - " + json.dumps(row, separators=(",", ":")))
+               f"{socket.gethostname()} nebulens - - - " + json.dumps(row, separators=(",", ":")))
         data = msg.encode()[:8192]
         if (proto or "udp").lower() == "tcp":
             with socket.create_connection((host, port), timeout=2) as sk:
@@ -2510,7 +2519,7 @@ async def auth(request: Request, call_next):
                 return JSONResponse({"error": "unauthorized"}, status_code=401)
             if cl["disabled"]:
                 return JSONResponse({"error": "cluster_disabled",
-                                     "message": f"cluster '{cl['slug']}' is disabled in this Oscilyx"}, status_code=403)
+                                     "message": f"cluster '{cl['slug']}' is disabled in this NebuLens"}, status_code=403)
             _cur_cluster.set({"slug": cl["slug"], "name": cl["name"]})
             if _cluster_touch_due(cl["slug"]):
                 await run_in_threadpool(_cluster_touch, cl["slug"])
@@ -2641,7 +2650,7 @@ async def readyz():
 @app.get("/api/stats")
 @ttl_cached
 def stats():
-    """Operational stats for monitoring Oscilyx itself."""
+    """Operational stats for monitoring NebuLens itself."""
     return {
         "spans": q("SELECT COUNT(*) n FROM spans")[0]["n"],
         "logs": q("SELECT COUNT(*) n FROM logs")[0]["n"],
@@ -2803,15 +2812,15 @@ def _rollup_series(m0, t0, w, buckets, service=None):
 
 
 # ---- edge rollup (service map)
-_EDGE_LAG_NS = int(float(os.environ.get("OSCILYX_EDGE_LAG_SECONDS", "120")) * 1e9)   # wait for parents to be stored
+_EDGE_LAG_NS = int(float(os.environ.get("NEBULENS_EDGE_LAG_SECONDS", "120")) * 1e9)   # wait for parents to be stored
 _EDGE_SLICE_NS = 5 * 60_000_000_000
 # The map is built from rolled-up edges, which trail live traffic by about the lag above (~2 min). The newest minutes are joined
 # raw only while that is cheap: at thousands of spans/s the raw join took 10 s+ per request, but on a new install or a demo
-# a 2-minute-late map looks empty. OSCILYX_MAP_TAIL: auto (default: include the newest minutes when fewer than
+# a 2-minute-late map looks empty. NEBULENS_MAP_TAIL: auto (default: include the newest minutes when fewer than
 # _MAP_TAIL_MAX requests arrived since the cursor), 1 = always, 0 = never.
-_MAP_TAIL = (os.environ.get("OSCILYX_MAP_TAIL", "auto").strip().lower() or "auto")
+_MAP_TAIL = (os.environ.get("NEBULENS_MAP_TAIL", "auto").strip().lower() or "auto")
 _MAP_TAIL = True if _MAP_TAIL in ("1", "true", "yes", "always") else False if _MAP_TAIL in ("0", "false", "no", "never") else "auto"
-_MAP_TAIL_MAX = int(os.environ.get("OSCILYX_MAP_TAIL_MAX", "20000"))
+_MAP_TAIL_MAX = int(os.environ.get("NEBULENS_MAP_TAIL_MAX", "20000"))
 
 
 def _map_tail_wanted(cur):
@@ -3240,7 +3249,7 @@ def metric_query(name: str, service: str = "", minutes: float = 60, buckets: int
 
 # ---- service health score (unique differentiator vs Dash0)
 # Combines error rate, p95 latency drift, log errors and synthetic health into
-# a 0-100 score per service with a one-line reason. Oscilyx computes this from
+# a 0-100 score per service with a one-line reason. NebuLens computes this from
 # raw signals; no rules required.
 def _health_score(svc, n, err, p95, p95_prev, log_err_rate, syn_down):
     """The health score rules (unchanged), from numbers that may come from the rollup or from a raw scan."""
@@ -3492,7 +3501,7 @@ def evaluate_rules():
             if new != r["state"]:
                 msg = f"{r['name']}: {r['signal']} {v:.2f} {r['op']} {r['threshold']}" if firing else f"{r['name']} recovered ({v:.2f})"
                 c.execute("INSERT INTO alert_events(rule_id,ts,state,value,msg) VALUES(?,?,?,?,?)", (r["id"], now, new, v, msg))
-                threading.Thread(target=notify, args=(r["webhook"], {"text": f"[Oscilyx] {new.upper()} - {msg}", "state": new, "rule": r["name"], "value": v}), daemon=True).start()
+                threading.Thread(target=notify, args=(r["webhook"], {"text": f"[NebuLens] {new.upper()} - {msg}", "state": new, "rule": r["name"], "value": v}), daemon=True).start()
 
 
 @app.get("/api/alerts")
@@ -3542,7 +3551,7 @@ def run_check(ch):
             c.execute("INSERT INTO synthetic_runs(check_id,ts,ok,status,ms,ssl_days,err) VALUES(?,?,?,?,?,?,?)", (ch["id"], int(time.time()), 0, 0, 0.0, None, blocked))
         return
     try:
-        req = urllib.request.Request(ch["url"], headers={"User-Agent": "Oscilyx-Synthetic/1.0"})
+        req = urllib.request.Request(ch["url"], headers={"User-Agent": "NebuLens-Synthetic/1.0"})
         try:
             resp = _urlopen(req, timeout=15); status = resp.status
         except urllib.error.HTTPError as e:
@@ -3958,7 +3967,7 @@ def environment_access():
         by.setdefault(r["grp"], []).append(r["slug"])
     return {"access": [{"grp": g, "slugs": v} for g, v in by.items()],
             "sso_enabled": sso_enabled(),
-            "note": "Groups come from the OIDC claim configured in OSCILYX_OIDC_GROUPS_CLAIM. "
+            "note": "Groups come from the OIDC claim configured in NEBULENS_OIDC_GROUPS_CLAIM. "
                     "A group with no entry here can see every environment."}
 
 
@@ -4047,7 +4056,7 @@ def cluster_create(body: ClusterIn):
         _env_known.add(slug)
     _cluster_cache_clear()
     return {"slug": slug, "name": name, "token": tok,
-            "note": "Copy this token now. Oscilyx stores only a hash of it and cannot show it again."}
+            "note": "Copy this token now. NebuLens stores only a hash of it and cannot show it again."}
 
 
 @app.patch("/api/clusters/{slug}")
@@ -4248,7 +4257,7 @@ def logs_export(minutes: float = 60, service: str = "", min_severity: int = 0, q
         for r in rows:
             yield ",".join(esc(r.get(c, "")) for c in cols) + "\n"
     return StreamingResponse(gen(), media_type="text/csv",
-                             headers={"Content-Disposition": "attachment; filename=oscilyx-logs.csv"})
+                             headers={"Content-Disposition": "attachment; filename=nebulens-logs.csv"})
 
 
 # ---- log facets (UI sidebar)
@@ -4288,7 +4297,7 @@ def logs_facets(minutes: float = 60, service: str = "", q_: str = "", env: str =
     }
 
 
-# ---- Oscilyx "intelligence" layer (rule-based, no LLM): insights, home summary, investigate, search
+# ---- NebuLens "intelligence" layer (rule-based, no LLM): insights, home summary, investigate, search
 def _pct(sorted_vals, p):
     return sorted_vals[min(len(sorted_vals) - 1, int(len(sorted_vals) * p))] if sorted_vals else 0.0
 
@@ -4432,7 +4441,7 @@ def search(q_: str = "", limit: int = 6):
 
 @app.get("/api/investigate")
 def investigate(q_: str = "", minutes: float = 60):
-    """Rule-based 'Ask Oscilyx': maps a question to an analysis over the stored signals."""
+    """Rule-based 'Ask NebuLens': maps a question to an analysis over the stored signals."""
     text = q_.lower().strip()
     svcs = [s for s in services(minutes) if s["n"] > 0]
     findings, suggestions = [], []
@@ -4534,8 +4543,8 @@ def alert_templates():
     return ALERT_TEMPLATES
 
 
-# ---- Claude-backed assistant ("Ask Oscilyx")
-# Read-only tool use over Oscilyx's own query functions. The rule-based /api/investigate
+# ---- Claude-backed assistant ("Ask NebuLens")
+# Read-only tool use over NebuLens's own query functions. The rule-based /api/investigate
 # stays as the fallback: the UI calls it whenever this endpoint reports disabled/error.
 AI_MAX_ITERATIONS = 8
 AI_MAX_TOOL_CHARS = 12000
@@ -4543,7 +4552,7 @@ AI_MAX_MESSAGES = 20
 AI_MAX_MSG_CHARS = 4000
 
 AI_SYSTEM = (
-    "You are the observability analyst built into this Oscilyx instance (an OpenTelemetry-native "
+    "You are the observability analyst built into this NebuLens instance (an OpenTelemetry-native "
     "platform holding traces, logs and metrics). Answer the user's question using ONLY the read-only "
     "tools provided; never guess numbers. Cite concrete evidence: service names, trace ids (full hex "
     "ids), error counts, percentages and latencies. If the data needed is missing or empty, say so "
@@ -4567,7 +4576,7 @@ AI_TOOLS = [
      "input_schema": {"type": "object", "properties": {"service": {"type": "string"}, "min_severity": {"type": "integer"},
                                                        "text": {"type": "string"}, "trace_id": {"type": "string"},
                                                        "minutes": _MIN, "limit": {"type": "integer"}}}},
-    {"name": "metric_names", "description": "Names of all metrics Oscilyx has seen (with services).",
+    {"name": "metric_names", "description": "Names of all metrics NebuLens has seen (with services).",
      "input_schema": {"type": "object", "properties": {}}},
     {"name": "metric_query", "description": "Time series for one metric. agg is avg|max|min|sum; group_by is an attribute key.",
      "input_schema": {"type": "object", "properties": {"name": {"type": "string"}, "service": {"type": "string"}, "minutes": _MIN,
@@ -4583,13 +4592,13 @@ AI_TOOLS = [
 
 
 # ---- AI provider. The assistant works with any LLM:
-#   OSCILYX_AI_PROVIDER=anthropic   Claude, through the official Anthropic SDK (key: OSCILYX_AI_API_KEY or ANTHROPIC_API_KEY)
-#   OSCILYX_AI_PROVIDER=openai      any endpoint that speaks the OpenAI chat-completions API with tool calling: OpenAI, Azure
+#   NEBULENS_AI_PROVIDER=anthropic   Claude, through the official Anthropic SDK (key: NEBULENS_AI_API_KEY or ANTHROPIC_API_KEY)
+#   NEBULENS_AI_PROVIDER=openai      any endpoint that speaks the OpenAI chat-completions API with tool calling: OpenAI, Azure
 #                                  OpenAI, Ollama, vLLM, LM Studio, Groq, Mistral, OpenRouter, Together, Gemini's compatible
-#                                  endpoint... Set OSCILYX_AI_BASE_URL (default https://api.openai.com/v1) and OSCILYX_AI_MODEL;
-#                                  the key (OSCILYX_AI_API_KEY or OPENAI_API_KEY) is optional for local servers such as Ollama.
-# Unset provider: ANTHROPIC_API_KEY alone keeps working as before (Claude); otherwise OPENAI_API_KEY or OSCILYX_AI_BASE_URL
-# selects the OpenAI-compatible path. OSCILYX_AI_NAME sets the name shown in the UI (e.g. "Llama 3.1 on Ollama").
+#                                  endpoint... Set NEBULENS_AI_BASE_URL (default https://api.openai.com/v1) and NEBULENS_AI_MODEL;
+#                                  the key (NEBULENS_AI_API_KEY or OPENAI_API_KEY) is optional for local servers such as Ollama.
+# Unset provider: ANTHROPIC_API_KEY alone keeps working as before (Claude); otherwise OPENAI_API_KEY or NEBULENS_AI_BASE_URL
+# selects the OpenAI-compatible path. NEBULENS_AI_NAME sets the name shown in the UI (e.g. "Llama 3.1 on Ollama").
 _AI_OPENAI_ALIASES = ("openai", "openai-compatible", "openai_compatible", "compatible", "azure", "azure-openai", "ollama", "vllm",
                       "lmstudio", "lm-studio", "groq", "mistral", "openrouter", "together", "gemini", "deepseek", "local")
 
@@ -4597,9 +4606,9 @@ _AI_OPENAI_ALIASES = ("openai", "openai-compatible", "openai_compatible", "compa
 def _ai_provider():
     # Hosted mode serves many tenants from one process: never forward their telemetry to an outside model
     # with the platform's key unless the operator explicitly opts in.
-    if HOSTED and os.environ.get("OSCILYX_HOSTED_AI") != "1":
+    if HOSTED and os.environ.get("NEBULENS_HOSTED_AI") != "1":
         return ""
-    p = os.environ.get("OSCILYX_AI_PROVIDER", "").strip().lower()
+    p = os.environ.get("NEBULENS_AI_PROVIDER", "").strip().lower()
     if p in ("anthropic", "claude"):
         return "anthropic"
     if p in _AI_OPENAI_ALIASES:
@@ -4608,7 +4617,7 @@ def _ai_provider():
         return ""
     if os.environ.get("ANTHROPIC_API_KEY", "").strip():
         return "anthropic"
-    if os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("OSCILYX_AI_BASE_URL", "").strip():
+    if os.environ.get("OPENAI_API_KEY", "").strip() or os.environ.get("NEBULENS_AI_BASE_URL", "").strip():
         return "openai"
     return ""
 
@@ -4617,16 +4626,16 @@ def _ai_key():
     prov = _ai_provider()
     if not prov:
         return ""
-    k = os.environ.get("OSCILYX_AI_API_KEY", "").strip()
+    k = os.environ.get("NEBULENS_AI_API_KEY", "").strip()
     return k or os.environ.get("ANTHROPIC_API_KEY" if prov == "anthropic" else "OPENAI_API_KEY", "").strip()
 
 
 def _ai_base_url():
-    return (os.environ.get("OSCILYX_AI_BASE_URL", "").strip() or "https://api.openai.com/v1").rstrip("/")
+    return (os.environ.get("NEBULENS_AI_BASE_URL", "").strip() or "https://api.openai.com/v1").rstrip("/")
 
 
 def _ai_model():
-    m = os.environ.get("OSCILYX_AI_MODEL", "").strip()
+    m = os.environ.get("NEBULENS_AI_MODEL", "").strip()
     if m:
         return m
     return "claude-sonnet-5-5" if _ai_provider() == "anthropic" else ""
@@ -4639,18 +4648,18 @@ def _ai_ready():
     if not prov:
         return False, "no AI provider configured"
     if prov == "anthropic":
-        return (True, "") if _ai_key() else (False, "OSCILYX_AI_PROVIDER=anthropic but no API key is set")
+        return (True, "") if _ai_key() else (False, "NEBULENS_AI_PROVIDER=anthropic but no API key is set")
     if urllib.parse.urlparse(_ai_base_url()).scheme not in ("http", "https"):
-        return False, "OSCILYX_AI_BASE_URL must be an http(s) URL"
+        return False, "NEBULENS_AI_BASE_URL must be an http(s) URL"
     if not _ai_model():
-        return False, "set OSCILYX_AI_MODEL to the model name your endpoint serves"
+        return False, "set NEBULENS_AI_MODEL to the model name your endpoint serves"
     if not _ai_key() and "api.openai.com" in _ai_base_url():
-        return False, "set OSCILYX_AI_API_KEY (or OSCILYX_AI_BASE_URL for a local server such as Ollama)"
+        return False, "set NEBULENS_AI_API_KEY (or NEBULENS_AI_BASE_URL for a local server such as Ollama)"
     return True, ""
 
 
 def _ai_name():
-    n = os.environ.get("OSCILYX_AI_NAME", "").strip()
+    n = os.environ.get("NEBULENS_AI_NAME", "").strip()
     if n:
         return n
     if _ai_provider() == "anthropic":
@@ -4661,7 +4670,7 @@ def _ai_name():
 
 # Community gets a daily allowance of AI answers so people can try the real thing; after that the UI offers Pro. 0 = AI answers
 # are Pro-only. Pro (and the trial) is unlimited. Customers bring their own model, so the allowance costs the vendor nothing.
-COMMUNITY_AI_DAILY = max(0, int(os.environ.get("OSCILYX_COMMUNITY_AI_DAILY", "20") or 0))
+COMMUNITY_AI_DAILY = max(0, int(os.environ.get("NEBULENS_COMMUNITY_AI_DAILY", "20") or 0))
 
 
 def _ai_quota():
@@ -4692,7 +4701,7 @@ def _ai_take():
 
 
 def _ai_client():
-    """Build the SDK client lazily so Oscilyx runs fine (rules mode) without the package/key."""
+    """Build the SDK client lazily so NebuLens runs fine (rules mode) without the package/key."""
     import anthropic
     return anthropic.Anthropic(api_key=_ai_key(), timeout=60.0, max_retries=1)
 
@@ -4795,12 +4804,12 @@ def _openai_chat(payload):
     headers = {"Content-Type": "application/json"}
     key = _ai_key()
     if key:
-        hk = os.environ.get("OSCILYX_AI_KEY_HEADER", "").strip()     # e.g. "api-key" for Azure OpenAI; default Bearer
+        hk = os.environ.get("NEBULENS_AI_KEY_HEADER", "").strip()     # e.g. "api-key" for Azure OpenAI; default Bearer
         headers[hk or "Authorization"] = key if hk else "Bearer " + key
     req = urllib.request.Request(_ai_base_url() + "/chat/completions", data=json.dumps(payload).encode(), headers=headers, method="POST")
     try:
         # Reviewed: operator-configured endpoint; _ai_ready() requires http(s).
-        with urllib.request.urlopen(req, timeout=float(os.environ.get("OSCILYX_AI_TIMEOUT", "60"))) as r:  # nosec B310
+        with urllib.request.urlopen(req, timeout=float(os.environ.get("NEBULENS_AI_TIMEOUT", "60"))) as r:  # nosec B310
             return json.loads(r.read().decode("utf-8", "replace"))
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:300]
@@ -4914,7 +4923,7 @@ def assistant(body: AssistantIn):
         raise HTTPException(403, {"error": "tier_limit", "feature": "AI answers", "limit": COMMUNITY_AI_DAILY, "tier": "community",
                                   "message": f"You've used today's {COMMUNITY_AI_DAILY} free AI answers. They reset at 00:00 UTC; "
                                              "Pro has unlimited AI answers. The rule-based analysis is still free.",
-                                  "upgrade_url": "https://oscilyx.dev/pricing"})
+                                  "upgrade_url": "https://nebulens.dev/pricing"})
     msgs = [m.model_dump() for m in body.messages]
     if body.stream:
         def sse():
@@ -4935,17 +4944,17 @@ def assistant(body: AssistantIn):
 
 
 # ================================================================ deployment mode + hosted (multi-tenant)
-# Everything below is inert unless OSCILYX_MODE=hosted, except GET /api/mode and the SSRF helpers.
+# Everything below is inert unless NEBULENS_MODE=hosted, except GET /api/mode and the SSRF helpers.
 #
 # Model: organization -> projects (each project is its own SQLite file = a hard data silo) -> API keys.
 #   ingest key (project)   : POST /v1/*                       (what exporters/collectors use)
 #   read key   (project)   : GET /api/*                       (dashboards, read-only API consumers)
-#   admin key  (org-wide)  : all /api/* (pick project with x-oscilyx-project) + /org/* self-service
-# Platform operator: OSCILYX_ADMIN_TOKEN guards /admin/* (create orgs, quotas, keys, usage).
+#   admin key  (org-wide)  : all /api/* (pick project with x-nebulens-project) + /org/* self-service
+# Platform operator: NEBULENS_ADMIN_TOKEN guards /admin/* (create orgs, quotas, keys, usage).
 # Keys are stored as sha256 hashes; the full key is shown exactly once at creation.
-DEFAULT_DAILY_CAP = int(os.environ.get("OSCILYX_DEFAULT_DAILY_CAP", "5000000"))  # spans+logs+metric points per org per UTC day
+DEFAULT_DAILY_CAP = int(os.environ.get("NEBULENS_DEFAULT_DAILY_CAP", "5000000"))  # spans+logs+metric points per org per UTC day
 KEY_TYPES = {"ingest": "p0i_", "read": "p0r_", "admin": "p0a_"}
-FAIL_LIMIT = int(os.environ.get("OSCILYX_AUTH_FAIL_LIMIT", "20"))  # failed auths per IP per minute
+FAIL_LIMIT = int(os.environ.get("NEBULENS_AUTH_FAIL_LIMIT", "20"))  # failed auths per IP per minute
 FAIL_WINDOW = 60
 
 _PLAT_SCHEMA = """
@@ -5035,7 +5044,7 @@ def _verify_key(key):
 
 
 def _extract_key(request):
-    k = request.headers.get("x-oscilyx-key") or request.headers.get("x-pulse0-key")   # old header name still accepted
+    k = request.headers.get("x-nebulens-key") or request.headers.get("x-oscilyx-key") or request.headers.get("x-pulse0-key")   # old header name still accepted
     if k:
         return k.strip()
     a = request.headers.get("authorization", "")
@@ -5052,8 +5061,8 @@ _FAILS = collections.defaultdict(collections.deque)
 
 def _client_ip(request):
     """Caller IP, recorded on every audit record. X-Forwarded-For is trusted only behind a proxy
-    you control (OSCILYX_TRUST_PROXY=1), because any client can send that header."""
-    if os.environ.get("OSCILYX_TRUST_PROXY") == "1":
+    you control (NEBULENS_TRUST_PROXY=1), because any client can send that header."""
+    if os.environ.get("NEBULENS_TRUST_PROXY") == "1":
         xf = request.headers.get("x-forwarded-for", "") or request.headers.get("x-real-ip", "")
         if xf:
             return xf.split(",")[0].strip()[:64]
@@ -5092,11 +5101,11 @@ def _usage_add(ident, fn_name, n):
 
 def _resolve_project(ident, request):
     """The project a /api/* request reads: the key's own project, or (org admin key) the one named by
-    x-oscilyx-project / ?project=, or the org's only project."""
+    x-nebulens-project / ?project=, or the org's only project."""
     if ident["project_id"]:
         return ident["project_id"], None
     projs = pq("SELECT id,name FROM projects WHERE org_id=? ORDER BY created", (ident["org_id"],))
-    sel = (request.headers.get("x-oscilyx-project") or request.headers.get("x-pulse0-project")
+    sel = (request.headers.get("x-nebulens-project") or request.headers.get("x-pulse0-project")
            or request.query_params.get("project") or "")
     if sel:
         for p in projs:
@@ -5106,7 +5115,7 @@ def _resolve_project(ident, request):
     if len(projs) == 1:
         return projs[0]["id"], None
     return None, JSONResponse({"error": "project_required", "projects": projs,
-                               "message": "choose a project with the x-oscilyx-project header"}, status_code=400)
+                               "message": "choose a project with the x-nebulens-project header"}, status_code=400)
 
 
 _READ_ONLY_POSTS = ("/api/assistant", "/api/investigate")
@@ -5158,7 +5167,7 @@ async def _hosted_auth(request: Request, call_next):
             _cur_db.reset(tok)
 
 
-# ---- outbound-call guard (webhooks + synthetics). Tenants must not be able to point Oscilyx at the
+# ---- outbound-call guard (webhooks + synthetics). Tenants must not be able to point NebuLens at the
 # cluster network, loopback or the cloud metadata service.
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *a, **k):
@@ -5345,7 +5354,7 @@ admin = APIRouter(prefix="/admin", dependencies=[Depends(_hosted_only)])
 org = APIRouter(prefix="/org", dependencies=[Depends(_hosted_only)])
 
 
-# ---- platform operator API (OSCILYX_ADMIN_TOKEN)
+# ---- platform operator API (NEBULENS_ADMIN_TOKEN)
 @admin.post("/orgs")
 def admin_org_create(body: OrgIn):
     oid = _new_id("org")
@@ -5523,7 +5532,7 @@ def _discovery():
 def _need_sso():
     if not IS_PRO:
         raise HTTPException(403, {"error": "pro_required", "message": "SSO is available on the Pro tier.",
-                                  "tier": "community", "upgrade_url": "https://oscilyx.dev/pricing"})
+                                  "tier": "community", "upgrade_url": "https://nebulens.dev/pricing"})
     if not sso_enabled():
         raise HTTPException(404, "SSO is not configured")
 
@@ -5585,7 +5594,7 @@ def auth_login(request: Request, next: str = "/"):
               "code_challenge": _b64(hashlib.sha256(verifier.encode()).digest()), "code_challenge_method": "S256"}
     ep = disc["authorization_endpoint"]
     resp = RedirectResponse(ep + ("&" if "?" in ep else "?") + urllib.parse.urlencode(params), status_code=302)
-    resp.set_cookie("ox_oidc", _sign({"s": state, "n": nonce, "v": verifier, "next": _safe_next(next), "exp": time.time() + 600}),
+    resp.set_cookie("nl_oidc", _sign({"s": state, "n": nonce, "v": verifier, "next": _safe_next(next), "exp": time.time() + 600}),
                     max_age=600, httponly=True, samesite="lax", secure=_secure_cookie(request), path="/auth")
     return resp
 
@@ -5595,7 +5604,7 @@ def auth_callback(request: Request, code: str = "", state: str = "", error: str 
     _need_sso()
     if error:
         return _login_page(f"The identity provider returned an error: {error}", 400)
-    st = _unsign(request.cookies.get("ox_oidc", ""))
+    st = _unsign(request.cookies.get("nl_oidc", ""))
     if not st or not code or not state or not hmac.compare_digest(str(st.get("s", "")), state):
         return _login_page("The sign-in session expired or was tampered with. Please start again.", 400)
     try:
@@ -5631,13 +5640,13 @@ def auth_callback(request: Request, code: str = "", state: str = "", error: str 
     role = _role_from_claims(claims)
     if not role:
         _audit(dict(actor=email, role="none", via="session"), "LOGIN", "/auth/callback", 403, "no role mapped")
-        return _login_page("Your account has no Oscilyx role. Ask an administrator to add you to a Oscilyx group.", 403)
+        return _login_page("Your account has no NebuLens role. Ask an administrator to add you to a NebuLens group.", 403)
     ttl = OIDC["session_ttl_h"] * 3600
     resp = RedirectResponse(_safe_next(st.get("next")), status_code=302)
-    resp.set_cookie("ox_session", _sign({"sub": str(claims.get("sub", "")), "email": email, "name": str(claims.get("name", "")),
+    resp.set_cookie("nl_session", _sign({"sub": str(claims.get("sub", "")), "email": email, "name": str(claims.get("name", "")),
                                          "role": role, "grp": _claim_groups(claims)[:40], "exp": time.time() + ttl}),
                     max_age=int(ttl), httponly=True, samesite="lax", secure=_secure_cookie(request), path="/")
-    resp.delete_cookie("ox_oidc", path="/auth")
+    resp.delete_cookie("nl_oidc", path="/auth")
     _audit(dict(actor=email, role=role, via="session"), "LOGIN", "/auth/callback", 302)
     return resp
 
@@ -5647,11 +5656,11 @@ def auth_logout(request: Request):
     origin = request.headers.get("origin")
     if origin and urllib.parse.urlparse(origin).netloc != request.headers.get("host", ""):
         raise HTTPException(403, "cross-origin request refused")
-    sess = _unsign(request.cookies.get("ox_session", ""))
+    sess = _unsign(request.cookies.get("nl_session", ""))
     if sess:
         _audit(dict(actor=sess.get("email", "?"), role=sess.get("role", "?"), via="session"), "LOGOUT", "/auth/logout", 200)
     resp = JSONResponse({"ok": True})
-    resp.delete_cookie("ox_session", path="/")
+    resp.delete_cookie("nl_session", path="/")
     return resp
 
 
@@ -5674,7 +5683,7 @@ def api_me(request: Request):
 def api_audit(limit: int = 200, actor: str = "", method: str = "", path_prefix: str = "",
               since_minutes: float = 0, status: int = 0):
     """Who did what (admin role, Pro). Mutating API calls plus sign-ins; also reads when
-    OSCILYX_AUDIT_READS=1."""
+    NEBULENS_AUDIT_READS=1."""
     _tier_gate("Audit log")
     where, args = ["1=1"], []
     if actor:
@@ -5741,7 +5750,7 @@ def api_audit_export(since_minutes: float = 0, limit: int = 100000):
         for r in rows:
             yield ",".join(esc(r.get(c, "")) for c in cols) + "\n"
     return StreamingResponse(gen(), media_type="text/csv",
-                             headers={"Content-Disposition": "attachment; filename=oscilyx-audit.csv"})
+                             headers={"Content-Disposition": "attachment; filename=nebulens-audit.csv"})
 
 
 @app.get("/api/mode")
@@ -5986,8 +5995,8 @@ def cache_warmer():
 
 def _warn_if_open():
     if not HOSTED and not (AUTH_TOKEN or READ_TOKEN or sso_enabled()):
-        print("WARNING: no OSCILYX_TOKEN (and no SSO) is set: anyone who can reach this port has ADMIN access to Oscilyx and its "
-              "data. Set OSCILYX_TOKEN (Helm: --set auth.token=$(openssl rand -hex 24)).", flush=True)
+        print("WARNING: no NEBULENS_TOKEN (and no SSO) is set: anyone who can reach this port has ADMIN access to NebuLens and its "
+              "data. Set NEBULENS_TOKEN (Helm: --set auth.token=$(openssl rand -hex 24)).", flush=True)
 
 
 def _start():
@@ -6010,35 +6019,36 @@ def index():
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
+@app.get("/sdk/nebulens-rum.js")
 @app.get("/sdk/oscilyx-rum.js")
 @app.get("/sdk/pulse0-rum.js")   # the old URL, so pages that already embed it keep reporting
 def rum_sdk():
     """The browser RUM SDK, served from its own URL so a <script src> tag is short and stable."""
     from fastapi.responses import FileResponse
-    return FileResponse(os.path.join(STATIC, "sdk", "oscilyx-rum.js"),
+    return FileResponse(os.path.join(STATIC, "sdk", "nebulens-rum.js"),
                         media_type="application/javascript",
                         headers={"Cache-Control": "public, max-age=3600"})
 
 if __name__ == "__main__":
     import uvicorn
     # TLS straight in the process, for sites with no ingress or service mesh to terminate it.
-    #   OSCILYX_TLS_CERT / OSCILYX_TLS_KEY   serve HTTPS
-    #   OSCILYX_TLS_CLIENT_CA               also require a client certificate (mTLS), so only
+    #   NEBULENS_TLS_CERT / NEBULENS_TLS_KEY   serve HTTPS
+    #   NEBULENS_TLS_CLIENT_CA               also require a client certificate (mTLS), so only
     #                                      collectors holding a cert signed by that CA can send data
     opts = {}
-    cert, key = os.environ.get("OSCILYX_TLS_CERT", ""), os.environ.get("OSCILYX_TLS_KEY", "")
+    cert, key = os.environ.get("NEBULENS_TLS_CERT", ""), os.environ.get("NEBULENS_TLS_KEY", "")
     if cert and key:
         opts.update(ssl_certfile=cert, ssl_keyfile=key)
-        kp = os.environ.get("OSCILYX_TLS_KEY_PASSWORD", "")
+        kp = os.environ.get("NEBULENS_TLS_KEY_PASSWORD", "")
         if kp:
             opts["ssl_keyfile_password"] = kp
-        ca = os.environ.get("OSCILYX_TLS_CLIENT_CA", "")
+        ca = os.environ.get("NEBULENS_TLS_CLIENT_CA", "")
         if ca:
             opts.update(ssl_ca_certs=ca, ssl_cert_reqs=ssl.CERT_REQUIRED)
             print("TLS enabled with mutual authentication (client certificate required)")
         else:
             print("TLS enabled")
     elif cert or key:
-        raise RuntimeError("OSCILYX_TLS_CERT and OSCILYX_TLS_KEY must both be set")
-    uvicorn.run(app, host=os.environ.get("OSCILYX_HOST", "127.0.0.1"),
-                port=int(os.environ.get("OSCILYX_PORT", "4318")), **opts)
+        raise RuntimeError("NEBULENS_TLS_CERT and NEBULENS_TLS_KEY must both be set")
+    uvicorn.run(app, host=os.environ.get("NEBULENS_HOST", "127.0.0.1"),
+                port=int(os.environ.get("NEBULENS_PORT", "4318")), **opts)

@@ -1,5 +1,5 @@
 # 22-service simulated platform. Apply with:
-#   kubectl create ns sim; kubectl -n sim create secret generic oscilyx-token --from-literal=token=<TOKEN>
+#   kubectl create ns sim; kubectl -n sim create secret generic nebulens-token --from-literal=token=<TOKEN>
 #   kubectl -n sim create configmap multi-load --from-file=multi_service_load.py=demo/multi_service_load.py
 #   kubectl apply -f demo/k8s-multi.yaml
 apiVersion: apps/v1
@@ -16,11 +16,11 @@ spec:
           image: public.ecr.aws/docker/library/python:3.12-slim
           command: ["python", "-u", "/app/multi_service_load.py"]
           env:
-            - {name: OSCILYX_URL, value: "http://oscilyx.observability:4318"}
+            - {name: NEBULENS_URL, value: "http://nebulens.observability:4318"}
             - {name: BATCH, value: "30"}
             - {name: PERIOD, value: "5"}
-            - name: OSCILYX_TOKEN
-              valueFrom: {secretKeyRef: {name: oscilyx-token, key: token}}
+            - name: NEBULENS_TOKEN
+              valueFrom: {secretKeyRef: {name: nebulens-token, key: token}}
           resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 250m, memory: 128Mi}}
           volumeMounts: [{name: code, mountPath: /app}]
       volumes: [{name: code, configMap: {name: multi-load}}]

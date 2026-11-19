@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Turn on extra CPU / memory metrics in the running Oscilyx collector (kubeletstats + hostmetrics, collector 0.111.0).
-Edits the ConfigMap oscilyx-collector in place and prints the restart command. Safe to run twice."""
+"""Turn on extra CPU / memory metrics in the running NebuLens collector (kubeletstats + hostmetrics, collector 0.111.0).
+Edits the ConfigMap nebulens-collector in place and prints the restart command. Safe to run twice."""
 import json, re, subprocess, sys
 
-NS, CM = "observability", "oscilyx-collector"
+NS, CM = "observability", "nebulens-collector"
 EXTRA = [  # all exist in otel-collector-contrib 0.111.0 and are off by default
     "container.cpu.usage", "k8s.pod.cpu.usage", "k8s.node.cpu.usage",                      # CPU in cores (not cumulative seconds)
     "k8s.container.cpu_limit_utilization", "k8s.container.memory_limit_utilization",       # % of the container's limit

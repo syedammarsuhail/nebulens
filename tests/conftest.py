@@ -1,25 +1,25 @@
 """Shared fixtures. The environment must be configured BEFORE server.py is imported (it reads it at import time).
 
 Run against SQLite (default):   pytest
-Run against Postgres:           OSCILYX_TEST_PG_URL=postgresql://user:pw@host/db pytest
+Run against Postgres:           NEBULENS_TEST_PG_URL=postgresql://user:pw@host/db pytest
 The same suite runs on both, which is how SQL that only works on one database gets caught.
 """
 import importlib.util, os, pathlib, tempfile
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-_TMP = tempfile.mkdtemp(prefix="oscilyx-test-")
-PG_URL = os.environ.get("OSCILYX_TEST_PG_URL", "")
+_TMP = tempfile.mkdtemp(prefix="nebulens-test-")
+PG_URL = os.environ.get("NEBULENS_TEST_PG_URL", "")
 os.environ.update({
-    "OSCILYX_TOKEN": "tok", "OSCILYX_TIER": "pro", "OSCILYX_CACHE_TTL": "0",
-    "OSCILYX_CLUSTER_NAME": "test-cluster", "OSCILYX_DB": os.path.join(_TMP, "oscilyx.db"),
-    "OSCILYX_REDACT": "card,ssn,iban,jwt,apikey", "OSCILYX_AUDIT_RETENTION_DAYS": "0",
+    "NEBULENS_TOKEN": "tok", "NEBULENS_TIER": "pro", "NEBULENS_CACHE_TTL": "0",
+    "NEBULENS_CLUSTER_NAME": "test-cluster", "NEBULENS_DB": os.path.join(_TMP, "nebulens.db"),
+    "NEBULENS_REDACT": "card,ssn,iban,jwt,apikey", "NEBULENS_AUDIT_RETENTION_DAYS": "0",
 })
 if PG_URL:
-    os.environ["OSCILYX_DATABASE_URL"] = PG_URL
-    os.environ["OSCILYX_PG_SCHEMA"] = "oscilyx_test"
+    os.environ["NEBULENS_DATABASE_URL"] = PG_URL
+    os.environ["NEBULENS_PG_SCHEMA"] = "nebulens_test"
 else:
-    os.environ.pop("OSCILYX_DATABASE_URL", None)
+    os.environ.pop("NEBULENS_DATABASE_URL", None)
 
 AUTH = {"Authorization": "Bearer tok"}
 
@@ -34,7 +34,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(scope="session")
 def srv():
-    spec = importlib.util.spec_from_file_location("oscilyx_server", ROOT / "server.py")
+    spec = importlib.util.spec_from_file_location("nebulens_server", ROOT / "server.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

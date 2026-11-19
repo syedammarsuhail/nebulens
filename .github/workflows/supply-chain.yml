@@ -41,12 +41,12 @@ jobs:
         with:
           image: ${{ env.IMAGE }}:${{ github.ref_name }}
           format: cyclonedx-json
-          output-file: oscilyx-sbom.cdx.json
+          output-file: nebulens-sbom.cdx.json
       - uses: anchore/sbom-action@v0
         with:
           image: ${{ env.IMAGE }}:${{ github.ref_name }}
           format: spdx-json
-          output-file: oscilyx-sbom.spdx.json
+          output-file: nebulens-sbom.spdx.json
 
       # Vulnerability report. Does not fail the build: the report is the deliverable, and a
       # reviewer wants to see known issues with their severities, not a silent pass.
@@ -54,7 +54,7 @@ jobs:
         with:
           image-ref: ${{ env.IMAGE }}:${{ github.ref_name }}
           format: sarif
-          output: oscilyx-vulns.sarif
+          output: nebulens-vulns.sarif
           severity: CRITICAL,HIGH,MEDIUM
           exit-code: "0"
 
@@ -65,7 +65,7 @@ jobs:
       - uses: sigstore/cosign-installer@v3
       - run: |
           cosign sign --yes "${IMAGE}@${DIGEST}"
-          cosign attest --yes --predicate oscilyx-sbom.cdx.json --type cyclonedx "${IMAGE}@${DIGEST}"
+          cosign attest --yes --predicate nebulens-sbom.cdx.json --type cyclonedx "${IMAGE}@${DIGEST}"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
 
@@ -73,6 +73,6 @@ jobs:
         with:
           name: supply-chain-evidence
           path: |
-            oscilyx-sbom.cdx.json
-            oscilyx-sbom.spdx.json
-            oscilyx-vulns.sarif
+            nebulens-sbom.cdx.json
+            nebulens-sbom.spdx.json
+            nebulens-vulns.sarif

@@ -1,6 +1,6 @@
 {{- $opOn := (index .Values "opentelemetry-operator").enabled -}}
 {{- if and .Values.autoInstrumentation.enabled (or $opOn (.Capabilities.APIVersions.Has "opentelemetry.io/v1alpha1/Instrumentation")) -}}
-# Oscilyx Instrumentation CR - consumed by the OpenTelemetry Operator.
+# NebuLens Instrumentation CR - consumed by the OpenTelemetry Operator.
 # When a pod is annotated, the Operator injects the matching language agent
 # as an init container. Zero source code change required.
 #
@@ -9,21 +9,21 @@
 #   - or a separate cluster-wide install of the Operator.
 #
 # Then opt in per workload (scripts/instrument.sh does this for you). The value is
-# "<namespace>/<name>" because your apps live in other namespaces than Oscilyx:
-#   instrumentation.opentelemetry.io/inject-python:  "{{ .Release.Namespace }}/oscilyx"
-#   instrumentation.opentelemetry.io/inject-java:    "{{ .Release.Namespace }}/oscilyx"
-#   instrumentation.opentelemetry.io/inject-nodejs:  "{{ .Release.Namespace }}/oscilyx"
-#   instrumentation.opentelemetry.io/inject-dotnet:  "{{ .Release.Namespace }}/oscilyx"
-#   instrumentation.opentelemetry.io/inject-go:      "{{ .Release.Namespace }}/oscilyx"
+# "<namespace>/<name>" because your apps live in other namespaces than NebuLens:
+#   instrumentation.opentelemetry.io/inject-python:  "{{ .Release.Namespace }}/nebulens"
+#   instrumentation.opentelemetry.io/inject-java:    "{{ .Release.Namespace }}/nebulens"
+#   instrumentation.opentelemetry.io/inject-nodejs:  "{{ .Release.Namespace }}/nebulens"
+#   instrumentation.opentelemetry.io/inject-dotnet:  "{{ .Release.Namespace }}/nebulens"
+#   instrumentation.opentelemetry.io/inject-go:      "{{ .Release.Namespace }}/nebulens"
 #
 # This is a post-install/post-upgrade hook so it is created after the Operator (and its webhook)
 # exist. It is kept after "helm uninstall"; remove it with:
-#   kubectl delete instrumentation oscilyx -n {{ .Release.Namespace }}
+#   kubectl delete instrumentation nebulens -n {{ .Release.Namespace }}
 apiVersion: opentelemetry.io/v1alpha1
 kind: Instrumentation
 metadata:
-  name: oscilyx
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: nebulens
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-weight": "5"
@@ -32,7 +32,7 @@ spec:
   exporter:
     # OTLP/HTTP on the bundled collector. HTTP is used for every language because .NET, Python and
     # Node.js agents default to http/protobuf; a gRPC port (4317) would silently fail for them.
-    endpoint: http://{{ include "oscilyx.fullname" . }}-collector.{{ .Release.Namespace }}.svc.cluster.local:4319
+    endpoint: http://{{ include "nebulens.fullname" . }}-collector.{{ .Release.Namespace }}.svc.cluster.local:4319
   propagators:
     - tracecontext
     - baggage

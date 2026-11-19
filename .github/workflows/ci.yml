@@ -33,7 +33,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
         env:
-          OSCILYX_TEST_PG_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          NEBULENS_TEST_PG_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   chart:
     runs-on: ubuntu-latest
@@ -42,12 +42,12 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: lint and render every platform values file
         run: |
-          helm lint helm/oscilyx --set auth.token=x
-          for f in helm/oscilyx/values*.yaml; do
-            helm template oscilyx helm/oscilyx -n test -f "$f" --set auth.token=x > /dev/null
+          helm lint helm/nebulens --set auth.token=x
+          for f in helm/nebulens/values*.yaml; do
+            helm template nebulens helm/nebulens -n test -f "$f" --set auth.token=x > /dev/null
             echo "rendered $f"
           done
-          helm template oscilyx helm/oscilyx --set auth.token=x --set opentelemetry-operator.enabled=true > /dev/null
+          helm template nebulens helm/nebulens --set auth.token=x --set opentelemetry-operator.enabled=true > /dev/null
 
   frontend:
     runs-on: ubuntu-latest
@@ -63,8 +63,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: build, then check it starts as a non-root user and reports healthy
         run: |
-          docker build -t oscilyx:ci .
-          test "$(docker run --rm --entrypoint id oscilyx:ci -u)" = "1000"
-          docker run -d --name p -e OSCILYX_TOKEN=tok oscilyx:ci
+          docker build -t nebulens:ci .
+          test "$(docker run --rm --entrypoint id nebulens:ci -u)" = "1000"
+          docker run -d --name p -e NEBULENS_TOKEN=tok nebulens:ci
           for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' p)" = healthy ] && exit 0; sleep 2; done
           docker logs p; exit 1

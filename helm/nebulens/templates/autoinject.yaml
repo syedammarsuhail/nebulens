@@ -1,6 +1,6 @@
 {{- $ai := .Values.autoInstrumentation.autoInject | default dict -}}
 {{- if and .Values.autoInstrumentation.enabled $ai.enabled -}}
-{{- $fn := printf "%s-autoinject" (include "oscilyx.fullname" .) -}}
+{{- $fn := printf "%s-autoinject" (include "nebulens.fullname" .) -}}
 # Auto-injection: a CronJob that annotates workloads in the listed namespaces so the OpenTelemetry
 # Operator injects the right language agent. Needs the Instrumentation CR (templates/instrumentation.yaml)
 # and the Operator. Starts in dryRun mode: read the Job logs first, then set dryRun=false.
@@ -8,7 +8,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: {{ $fn }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 {{- range $ai.namespaces }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -40,7 +40,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ $fn }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 data:
   autoinject.py: |-
 {{ .Files.Get "files/autoinject.py" | indent 4 }}
@@ -49,7 +49,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: {{ $fn }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 spec:
   schedule: {{ $ai.schedule | default "*/10 * * * *" | quote }}
   concurrencyPolicy: Forbid
@@ -68,7 +68,7 @@ spec:
               command: ["python3", "/scripts/autoinject.py"]
               env:
                 - name: AUTOINJECT_CONFIG
-                  value: {{ dict "namespaces" $ai.namespaces "kinds" ($ai.kinds | default (list "deployments" "statefulsets")) "dryRun" (ternary $ai.dryRun true (hasKey $ai "dryRun")) "maxChangesPerRun" ($ai.maxChangesPerRun | default 3) "instrumentation" (printf "%s/oscilyx" .Release.Namespace) "overrides" ($ai.overrides | default dict) "exclude" ($ai.exclude | default list) | toJson | quote }}
+                  value: {{ dict "namespaces" $ai.namespaces "kinds" ($ai.kinds | default (list "deployments" "statefulsets")) "dryRun" (ternary $ai.dryRun true (hasKey $ai "dryRun")) "maxChangesPerRun" ($ai.maxChangesPerRun | default 3) "instrumentation" (printf "%s/nebulens" .Release.Namespace) "overrides" ($ai.overrides | default dict) "exclude" ($ai.exclude | default list) | toJson | quote }}
               securityContext:
                 allowPrivilegeEscalation: false
               resources:

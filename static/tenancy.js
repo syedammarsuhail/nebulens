@@ -1,7 +1,7 @@
-/* Oscilyx deployment mode UI: get-started chooser (self-hosted vs Pulse-hosted), organization page
+/* NebuLens deployment mode UI: get-started chooser (self-hosted vs Pulse-hosted), organization page
    (hosted mode), Settings panel. Loaded after core.js/views*.js; wraps P.start to learn the mode first. */
 (function () {
-  const P = window.Oscilyx;
+  const P = window.NebuLens;
   const { el, icon, panel, head, kpi, empty, codeBlock, field, modal, confirmBox, toast, pill, store, compact, fmt } = P;
   P.mode = "selfhosted"; P.features = {};
 
@@ -135,14 +135,14 @@
   // ---------------------------------------------------------------- get started
   const ORIGIN = location.origin;
   function envBlock(key, mode) {
-    const hdr = mode === "hosted" ? `x-oscilyx-key=${key}` : `authorization=Bearer%20${key}`;
+    const hdr = mode === "hosted" ? `x-nebulens-key=${key}` : `authorization=Bearer%20${key}`;
     return `export OTEL_SERVICE_NAME=my-service
 export OTEL_EXPORTER_OTLP_ENDPOINT=${ORIGIN}
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf${mode === "hosted" || key ? `\nexport OTEL_EXPORTER_OTLP_HEADERS="${hdr}"` : ""}`;
   }
   function snippets(key, mode) {
     const env = envBlock(key, mode);
-    const hdrKey = mode === "hosted" ? "x-oscilyx-key" : "Authorization";
+    const hdrKey = mode === "hosted" ? "x-nebulens-key" : "Authorization";
     const hdrVal = mode === "hosted" ? key : `Bearer ${key}`;
     return {
       Python: `pip install opentelemetry-distro opentelemetry-exporter-otlp-proto-http
@@ -173,15 +173,15 @@ const exporter = new OTLPTraceExporter({
 });
 // Browser keys are public: use a dedicated low-quota project for RUM, never a production ingest key.`,
       "OTel Collector": `exporters:
-  otlphttp/oscilyx:
+  otlphttp/nebulens:
     endpoint: ${ORIGIN}
     headers:
       ${hdrKey}: "${hdrVal}"
 service:
   pipelines:
-    traces:  { receivers: [otlp], exporters: [otlphttp/oscilyx] }
-    logs:    { receivers: [otlp], exporters: [otlphttp/oscilyx] }
-    metrics: { receivers: [otlp], exporters: [otlphttp/oscilyx] }`,
+    traces:  { receivers: [otlp], exporters: [otlphttp/nebulens] }
+    logs:    { receivers: [otlp], exporters: [otlphttp/nebulens] }
+    metrics: { receivers: [otlp], exporters: [otlphttp/nebulens] }`,
     };
   }
 
@@ -211,19 +211,19 @@ service:
       const pick = id => { P.S.__tn_choice = id; paint(); };
 
       function selfSteps() {
-        const tok = store.get("token", "") ? "<YOUR_OSCILYX_TOKEN>" : "";
+        const tok = store.get("token", "") ? "<YOUR_NEBULENS_TOKEN>" : "";
         const tabs = snippets(tok, "selfhosted"); let lang = "Python";
         const sn = el("div", {});
         const tabBar = el("div", { class: "tn-tabs" });
         const paintSn = () => { tabBar.replaceChildren(...Object.keys(tabs).map(k => el("button", { class: "btn sm" + (k === lang ? " accent" : ""), on: { click: () => { lang = k; paintSn(); } } }, k))); sn.replaceChildren(codeBlock(tabs[lang])); };
         paintSn();
         return panel("Self-hosted: install and connect", el("div", { class: "tn-steps" },
-          el("div", { class: "tn-step" }, el("i", {}, "1"), el("div", { class: "col" }, el("h4", {}, "Install Oscilyx in your cluster"),
-            codeBlock("helm upgrade --install oscilyx ./helm/oscilyx -n observability --create-namespace \\\n  --set persistence.size=50Gi --set auth.token=<CHOOSE_A_TOKEN>"),
-            el("div", { class: "muted" }, "No Kubernetes? ", el("span", { class: "mono" }, "docker run -p 4318:4318 -v oscilyx-data:/data oscilyx"), ". EKS, AKS and bare-metal overlays are in the chart (values-eks.yaml, values-aks.yaml, values-baremetal.yaml)."))),
+          el("div", { class: "tn-step" }, el("i", {}, "1"), el("div", { class: "col" }, el("h4", {}, "Install NebuLens in your cluster"),
+            codeBlock("helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \\\n  --set persistence.size=50Gi --set auth.token=<CHOOSE_A_TOKEN>"),
+            el("div", { class: "muted" }, "No Kubernetes? ", el("span", { class: "mono" }, "docker run -p 4318:4318 -v nebulens-data:/data nebulens"), ". EKS, AKS and bare-metal overlays are in the chart (values-eks.yaml, values-aks.yaml, values-baremetal.yaml)."))),
           el("div", { class: "tn-step" }, el("i", {}, "2"), el("div", { class: "col" }, el("h4", {}, "Point your apps at it"), tabBar, sn,
-            el("div", { class: "muted" }, "In-cluster apps can use ", el("span", { class: "mono" }, "http://oscilyx.observability.svc.cluster.local:4318"), " (or the bundled collector on :4319)."))),
-          el("div", { class: "tn-step" }, el("i", {}, "3"), el("div", { class: "col" }, el("h4", {}, "Open Oscilyx and watch it fill"), el("div", {}, el("a", { class: "btn primary", href: "#/home" }, "Go to Home"), " ", el("a", { class: "btn", href: "#/setup" }, "More setup options")))),
+            el("div", { class: "muted" }, "In-cluster apps can use ", el("span", { class: "mono" }, "http://nebulens.observability.svc.cluster.local:4318"), " (or the bundled collector on :4319)."))),
+          el("div", { class: "tn-step" }, el("i", {}, "3"), el("div", { class: "col" }, el("h4", {}, "Open NebuLens and watch it fill"), el("div", {}, el("a", { class: "btn primary", href: "#/home" }, "Go to Home"), " ", el("a", { class: "btn", href: "#/setup" }, "More setup options")))),
           dataFlow("selfhosted")), { sub: P.mode === "selfhosted" ? "You are on this server" : "Run this once on your own infrastructure" });
       }
 
@@ -243,7 +243,7 @@ service:
           el("div", { class: "tn-step" }, el("i", {}, "2"), el("div", { class: "col" }, el("h4", {}, "Create a project and an ingest key"),
             el("div", { class: "muted" }, "Each project is an isolated data silo. Ingest keys only send data; read keys only read it. A key is shown once."), el("div", {}, keyBtn),
             ingestKey ? el("div", { class: "tn-note warn" }, "Key created and inserted into the snippets below. It will not be shown again.") : null)),
-          el("div", { class: "tn-step" }, el("i", {}, "3"), el("div", { class: "col" }, el("h4", {}, "Send telemetry"), el("div", { class: "muted" }, "Endpoint: ", el("span", { class: "mono" }, ORIGIN), " · header ", el("span", { class: "mono" }, "x-oscilyx-key")), tabBar, sn)),
+          el("div", { class: "tn-step" }, el("i", {}, "3"), el("div", { class: "col" }, el("h4", {}, "Send telemetry"), el("div", { class: "muted" }, "Endpoint: ", el("span", { class: "mono" }, ORIGIN), " · header ", el("span", { class: "mono" }, "x-nebulens-key")), tabBar, sn)),
           dataFlow("hosted")), { sub: P.mode === "hosted" ? "You are on this server" : "Available when your operator runs Pulse in hosted mode" });
       }
 
@@ -254,7 +254,7 @@ service:
       }
 
       paint();
-      page.append(head("Get started with Oscilyx", "Choose where your observability data lives. You can switch any time: both modes speak the same OpenTelemetry."), body);
+      page.append(head("Get started with NebuLens", "Choose where your observability data lives. You can switch any time: both modes speak the same OpenTelemetry."), body);
     },
   });
 
@@ -370,7 +370,7 @@ service:
       const grid = page.querySelector(".grid"); if (!grid) return;
       const proj = store.get("project", "");
       const rows = [["Mode", MODES[P.mode] || P.mode], ["Data lives", hosted() ? "On Pulse infrastructure, one database per project" : "In your own cluster / volume"],
-        ["Organizations", hosted() ? "enabled" : "not used (single workspace)"], ["Quotas & retention", hosted() ? "per organization, set by the operator" : "OSCILYX_RETENTION_HOURS"],
+        ["Organizations", hosted() ? "enabled" : "not used (single workspace)"], ["Quotas & retention", hosted() ? "per organization, set by the operator" : "NEBULENS_RETENTION_HOURS"],
         ["AI assistant", P.features.ai_assistant ? "enabled (query snippets go to the configured AI provider)" : "off"]];
       const isTrial = P.trial?.active;
       const trialExpired = P.trial && !P.trial.active;

@@ -1,4 +1,4 @@
-/* Oscilyx pages, part 2: Metrics, Dashboards, Alerts, SLOs, Synthetics, Setup, Settings */
+/* NebuLens pages, part 2: Metrics, Dashboards, Alerts, SLOs, Synthetics, Setup, Settings */
 (function () {
   const P = window.P, { el, icon, api, qs, compact, fmt, ms, pct, ago, stamp, pill, copyText, chart, sparkline, dataTable, empty, panel, kpi, head, codeBlock, field, toast, modal, confirmBox, setParams, nav, store, S } = P;
   const M = () => P.minutes(), enc = encodeURIComponent, post = (p, b) => api(p, { method: "POST", body: b }), del = p => api(p, { method: "DELETE" });
@@ -201,7 +201,7 @@
       page.append(head("Environments", "Each environment is a cluster or a deployment.environment, with its namespaces listed inside"));
       if (!envs.length) {
         page.append(el("section", { class: "panel fill" }, empty("No environments yet",
-          "Environments appear on their own once telemetry arrives carrying k8s.namespace.name, k8s.cluster.name or deployment.environment. Connect another cluster by pointing its collector at this Oscilyx.")));
+          "Environments appear on their own once telemetry arrives carrying k8s.namespace.name, k8s.cluster.name or deployment.environment. Connect another cluster by pointing its collector at this NebuLens.")));
         return;
       }
       const rows = envs.map(e => {
@@ -228,7 +228,7 @@
             ...e.namespaces.slice(0, 12).map(n => el("span", { class: "ns-chip", title: `${n.services} service${n.services === 1 ? "" : "s"}` }, n.namespace)),
             e.namespaces.length > 12 ? el("span", { class: "muted", style: "font-size:12px" }, `+${e.namespaces.length - 12}`) : null) : null),
           (e.unnamed ? el("div", { class: "muted", style: "font-size:12px;margin-top:4px" },
-            "This environment is unnamed. Set env.OSCILYX_CLUSTER_NAME in the Helm chart (or send k8s.cluster.name / deployment.environment) to name it after your cluster.") : null));
+            "This environment is unnamed. Set env.NEBULENS_CLUSTER_NAME in the Helm chart (or send k8s.cluster.name / deployment.environment) to name it after your cluster.") : null));
       });
       page.append(el("div", { class: "cards", "data-keep": "envs" }, ...rows));
       if (disc && disc.unassigned_spans) {
@@ -273,16 +273,16 @@
         dotnet: [".NET", `dotnet add package OpenTelemetry.AutoInstrumentation\n\nOTEL_SERVICE_NAME=my-service \\\nOTEL_EXPORTER_OTLP_ENDPOINT=${ep} \\\nOTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf \\\n./otel-dotnet-auto-instrument.sh dotnet MyApp.dll`],
         go: ["Go", `go get go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp\n\n// exporter\nexp, _ := otlptracehttp.New(ctx,\n    otlptracehttp.WithEndpointURL("${ep}/v1/traces"))\n\n// or zero-code with the Operator: instrumentation.opentelemetry.io/inject-go: "true"`],
         browser: ["Website (in the browser)", `<script type="module">\n  import { WebTracerProvider } from "https://esm.sh/@opentelemetry/sdk-trace-web";\n  import { OTLPTraceExporter } from "https://esm.sh/@opentelemetry/exporter-trace-otlp-http";\n  import { BatchSpanProcessor } from "https://esm.sh/@opentelemetry/sdk-trace-base";\n  const p = new WebTracerProvider({ spanProcessors: [new BatchSpanProcessor(\n    new OTLPTraceExporter({ url: "${ep}/v1/traces" }))] });\n  p.register();\n</script>`],
-        collector: ["Collector", `exporters:\n  otlphttp/oscilyx:\n    endpoint: ${ep}${tok ? `\n    headers:\n      Authorization: "Bearer ${auth}"` : ""}\n\nservice:\n  pipelines:\n    traces:  { exporters: [otlphttp/oscilyx] }\n    metrics: { exporters: [otlphttp/oscilyx] }\n    logs:    { exporters: [otlphttp/oscilyx] }`],
-        k8s: ["Kubernetes", `# Install Oscilyx (bundles an OpenTelemetry Collector DaemonSet)\nhelm upgrade --install oscilyx ./helm/oscilyx -n observability --create-namespace\n\n# Point workloads at the in-cluster collector\nOTEL_EXPORTER_OTLP_ENDPOINT=http://oscilyx-collector.observability.svc.cluster.local:4319\n\n# Zero-code auto-instrumentation (needs the OpenTelemetry Operator; see ON-PREM.md)\n# languages: java, dotnet, python, nodejs, go\nscripts/instrument.sh python -n <namespace> my-app`],
+        collector: ["Collector", `exporters:\n  otlphttp/nebulens:\n    endpoint: ${ep}${tok ? `\n    headers:\n      Authorization: "Bearer ${auth}"` : ""}\n\nservice:\n  pipelines:\n    traces:  { exporters: [otlphttp/nebulens] }\n    metrics: { exporters: [otlphttp/nebulens] }\n    logs:    { exporters: [otlphttp/nebulens] }`],
+        k8s: ["Kubernetes", `# Install NebuLens (bundles an OpenTelemetry Collector DaemonSet)\nhelm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace\n\n# Point workloads at the in-cluster collector\nOTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319\n\n# Zero-code auto-instrumentation (needs the OpenTelemetry Operator; see ON-PREM.md)\n# languages: java, dotnet, python, nodejs, go\nscripts/instrument.sh python -n <namespace> my-app`],
       };
       const tab = q.get("lang") || "python", out = el("div");
       const show = k => { out.replaceChildren(codeBlock(SN[k][1])); document.querySelectorAll(".lang-tabs a").forEach(a => a.classList.toggle("on", a.dataset.k === k)); setParams({ lang: k }); };
-      const test = el("button", { class: "btn", on: { click: async () => { const now = Date.now() * 1e6, hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, "0")).join(""); const h = { "Content-Type": "application/json" }; if (tok) h.Authorization = "Bearer " + tok; const r = await fetch("/v1/traces", { method: "POST", headers: h, body: JSON.stringify({ resourceSpans: [{ resource: { attributes: [{ key: "service.name", value: { stringValue: "oscilyx-setup-test" } }] }, scopeSpans: [{ spans: [{ traceId: hex(16), spanId: hex(8), name: "setup test span", kind: 2, startTimeUnixNano: String(now - 5e6), endTimeUnixNano: String(now), status: { code: 1 }, attributes: [] }] }] }] }) }); toast(r.ok ? "Test span sent — see it under Services → oscilyx-setup-test" : "Failed: HTTP " + r.status, r.ok ? "ok" : "err"); } } }, icon("play", 13), "Send test span");
-      page.append(head("Setup & integrations", "Point OpenTelemetry at Oscilyx — one endpoint for traces, logs and metrics", test),
+      const test = el("button", { class: "btn", on: { click: async () => { const now = Date.now() * 1e6, hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, "0")).join(""); const h = { "Content-Type": "application/json" }; if (tok) h.Authorization = "Bearer " + tok; const r = await fetch("/v1/traces", { method: "POST", headers: h, body: JSON.stringify({ resourceSpans: [{ resource: { attributes: [{ key: "service.name", value: { stringValue: "nebulens-setup-test" } }] }, scopeSpans: [{ spans: [{ traceId: hex(16), spanId: hex(8), name: "setup test span", kind: 2, startTimeUnixNano: String(now - 5e6), endTimeUnixNano: String(now), status: { code: 1 }, attributes: [] }] }] }] }) }); toast(r.ok ? "Test span sent — see it under Services → nebulens-setup-test" : "Failed: HTTP " + r.status, r.ok ? "ok" : "err"); } } }, icon("play", 13), "Send test span");
+      page.append(head("Setup & integrations", "Point OpenTelemetry at NebuLens — one endpoint for traces, logs and metrics", test),
         el("div", { class: "grid", style: "grid-template-columns:repeat(auto-fit,minmax(240px,1fr))" }, ...[["Traces", "/v1/traces"], ["Logs", "/v1/logs"], ["Metrics", "/v1/metrics"]].map(([l, p]) => el("div", { class: "kpi" }, el("div", { class: "k" }, `OTLP/HTTP · ${l}`), el("div", { class: "mono", style: "margin-top:6px;overflow-wrap:anywhere" }, ep + p), el("div", {}, el("button", { class: "btn sm", style: "margin-top:8px", on: { click: () => copyText(ep + p) } }, icon("copy", 12), "Copy"))))),
         panel("Instrument an application", el("div", {}, el("div", { class: "tabs lang-tabs", style: "margin:-12px -14px 12px" }, ...Object.entries(SN).map(([k, [l]]) => el("a", { "data-k": k, href: "javascript:void 0", class: k === tab ? "on" : "", on: { click: () => show(k) } }, l))), out), { style: "flex:none" }),
-        el("div", { class: "grid", style: "grid-template-columns:repeat(auto-fit,minmax(280px,1fr))" }, panel("Protocol", el("div", { class: "muted" }, "OTLP over HTTP, JSON or protobuf, gzip supported. gRPC is not served — use http/protobuf in SDKs and the Collector's otlphttp exporter.")), panel("Authentication", el("div", { class: "muted" }, tok ? "A token is saved in this browser. Add it to exporters as an Authorization: Bearer header." : "No token configured in this browser. If the server sets OSCILYX_TOKEN, add it in Settings and as a Bearer header on exporters.")), panel("Zero-code on Kubernetes", el("div", { class: "muted" }, "Install the OpenTelemetry Operator, then annotate any Deployment with instrumentation.opentelemetry.io/inject-<lang>=\"true\" — no source changes."))));
+        el("div", { class: "grid", style: "grid-template-columns:repeat(auto-fit,minmax(280px,1fr))" }, panel("Protocol", el("div", { class: "muted" }, "OTLP over HTTP, JSON or protobuf, gzip supported. gRPC is not served — use http/protobuf in SDKs and the Collector's otlphttp exporter.")), panel("Authentication", el("div", { class: "muted" }, tok ? "A token is saved in this browser. Add it to exporters as an Authorization: Bearer header." : "No token configured in this browser. If the server sets NEBULENS_TOKEN, add it in Settings and as a Bearer header on exporters.")), panel("Zero-code on Kubernetes", el("div", { class: "muted" }, "Install the OpenTelemetry Operator, then annotate any Deployment with instrumentation.opentelemetry.io/inject-<lang>=\"true\" — no source changes."))));
       show(tab);
     },
   });
@@ -295,51 +295,51 @@
       const ai = await api("/assistant/status").catch(() => null); if (ai) P.aiStatus = ai;
       const me = await api("/me").catch(() => null);
       const audit = me && me.role === "admin" ? await api("/audit?limit=50").catch(() => null) : null;
-      const tok = el("input", { type: "password", value: store.get("token", ""), placeholder: "Bearer token (only if OSCILYX_TOKEN is set)", style: "width:min(420px,100%)" });
+      const tok = el("input", { type: "password", value: store.get("token", ""), placeholder: "Bearer token (only if NEBULENS_TOKEN is set)", style: "width:min(420px,100%)" });
       const theme = el("select", { on: { change: e => { document.documentElement.dataset.theme = e.target.value; store.set("theme", e.target.value); } } }, opt("dark", "Dark", document.documentElement.dataset.theme !== "light"), opt("light", "Light", document.documentElement.dataset.theme === "light"));
       const rng = el("select", { on: { change: e => P.setRange(+e.target.value) } }, ...[5, 15, 30, 60, 180, 360, 720, 1440, 4320, 10080].map(m => opt(m, P.rangeLabel(m), m === M())));
       page.append(head("Settings", "Preferences are stored in this browser"),
         el("div", { class: "grid", style: "grid-template-columns:repeat(auto-fit,minmax(380px,1fr));align-items:start" },
           panel("Access", el("div", { class: "col" }, field("API token", tok, "Sent as Authorization: Bearer on every request. Leave empty when auth is disabled."), el("div", { style: "display:flex;gap:8px" }, el("button", { class: "btn primary", on: { click: () => { store.set("token", tok.value.trim()); toast("Token saved", "ok"); P.render(); } } }, "Save token"), el("button", { class: "btn", on: { click: () => { store.set("token", ""); tok.value = ""; toast("Token cleared"); } } }, "Clear")))),
           panel("AI assistant", el("div", { class: "col" },
-            el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, el("span", { class: "pro-tag", title: "Unlimited AI answers are part of Oscilyx Pro; Community gets a daily allowance; rule-based analysis is free" }, ai && ai.trial ? "PRO · trial" : "PRO"), ai ? (ai.enabled ? pill((ai.name || "AI") + " enabled", "ok") : ai.locked ? pill("Free AI answers used up today", "warn") : pill("Rule-based only", "")) : pill("status unavailable", "warn"), ai && ai.quota && ai.quota.limit ? el("span", { class: "muted", style: "font-size:12px" }, `Community: ${ai.quota.remaining} of ${ai.quota.limit} free AI answers left today`) : null, ai && ai.enabled ? el("span", { class: "mono muted" }, ai.model) : null),
+            el("div", { style: "display:flex;gap:8px;align-items:center;flex-wrap:wrap" }, el("span", { class: "pro-tag", title: "Unlimited AI answers are part of NebuLens Pro; Community gets a daily allowance; rule-based analysis is free" }, ai && ai.trial ? "PRO · trial" : "PRO"), ai ? (ai.enabled ? pill((ai.name || "AI") + " enabled", "ok") : ai.locked ? pill("Free AI answers used up today", "warn") : pill("Rule-based only", "")) : pill("status unavailable", "warn"), ai && ai.quota && ai.quota.limit ? el("span", { class: "muted", style: "font-size:12px" }, `Community: ${ai.quota.remaining} of ${ai.quota.limit} free AI answers left today`) : null, ai && ai.enabled ? el("span", { class: "mono muted" }, ai.model) : null),
             el("div", { class: "muted" }, ai && ai.enabled
-              ? `Ask Oscilyx answers with ${ai.name || "your AI model"} using read-only queries over your traces, logs, metrics, alerts and SLOs. If the model is unreachable it falls back to the built-in rules automatically.`
-              : "Ask Oscilyx currently uses built-in keyword rules. Connect any AI model to get AI answers: Claude, OpenAI, Azure OpenAI, or a self-hosted model (Ollama, vLLM, LM Studio) through any OpenAI-compatible endpoint. Keys are stored only as a Kubernetes secret or an environment variable, never in the browser."),
+              ? `Ask NebuLens answers with ${ai.name || "your AI model"} using read-only queries over your traces, logs, metrics, alerts and SLOs. If the model is unreachable it falls back to the built-in rules automatically.`
+              : "Ask NebuLens currently uses built-in keyword rules. Connect any AI model to get AI answers: Claude, OpenAI, Azure OpenAI, or a self-hosted model (Ollama, vLLM, LM Studio) through any OpenAI-compatible endpoint. Keys are stored only as a Kubernetes secret or an environment variable, never in the browser."),
             ai && !ai.enabled && ai.reason ? el("div", { class: "muted", style: "font-size:12px" }, "Status: " + ai.reason) : null,
             el("div", { class: "muted", style: "font-size:12px" }, "Kubernetes: create the secret once (skip it for a local model without a key), then enable it in Helm:"),
-            codeBlock(["kubectl -n observability create secret generic oscilyx-ai --from-literal=api-key=<YOUR_API_KEY>",
+            codeBlock(["kubectl -n observability create secret generic nebulens-ai --from-literal=api-key=<YOUR_API_KEY>",
               "",
               "# Claude",
-              "helm upgrade oscilyx ./helm/oscilyx -n observability --reuse-values --set ai.enabled=true --set ai.provider=anthropic --set ai.existingSecret=oscilyx-ai",
+              "helm upgrade nebulens ./helm/nebulens -n observability --reuse-values --set ai.enabled=true --set ai.provider=anthropic --set ai.existingSecret=nebulens-ai",
               "",
               "# OpenAI, Azure OpenAI, Groq, Mistral, OpenRouter... (any OpenAI-compatible endpoint)",
-              "helm upgrade oscilyx ./helm/oscilyx -n observability --reuse-values --set ai.enabled=true --set ai.provider=openai --set ai.existingSecret=oscilyx-ai \\",
+              "helm upgrade nebulens ./helm/nebulens -n observability --reuse-values --set ai.enabled=true --set ai.provider=openai --set ai.existingSecret=nebulens-ai \\",
               "  --set ai.baseUrl=https://api.openai.com/v1 --set ai.model=<MODEL_NAME>",
               "",
               "# Self-hosted model, nothing leaves your network (Ollama shown)",
-              "helm upgrade oscilyx ./helm/oscilyx -n observability --reuse-values --set ai.enabled=true --set ai.provider=openai \\",
+              "helm upgrade nebulens ./helm/nebulens -n observability --reuse-values --set ai.enabled=true --set ai.provider=openai \\",
               "  --set ai.baseUrl=http://ollama.ollama:11434/v1 --set ai.model=llama3.1 --set ai.name=\"Llama 3.1\""].join("\n")),
             el("div", { class: "muted", style: "font-size:12px" }, "Docker / local process (environment variables):"),
             codeBlock(["# Claude",
-              "OSCILYX_AI_PROVIDER=anthropic OSCILYX_AI_API_KEY=<KEY> python server.py",
+              "NEBULENS_AI_PROVIDER=anthropic NEBULENS_AI_API_KEY=<KEY> python server.py",
               "# Any OpenAI-compatible endpoint",
-              "OSCILYX_AI_PROVIDER=openai OSCILYX_AI_BASE_URL=<https://.../v1> OSCILYX_AI_MODEL=<MODEL> OSCILYX_AI_API_KEY=<KEY> python server.py",
+              "NEBULENS_AI_PROVIDER=openai NEBULENS_AI_BASE_URL=<https://.../v1> NEBULENS_AI_MODEL=<MODEL> NEBULENS_AI_API_KEY=<KEY> python server.py",
               "# Azure OpenAI sends the key in an api-key header",
-              "OSCILYX_AI_KEY_HEADER=api-key"].join("\n")),
-            el("div", { class: "muted", style: "font-size:12px" }, "The model must support tool (function) calling. Restart Oscilyx after changing these."))),
+              "NEBULENS_AI_KEY_HEADER=api-key"].join("\n")),
+            el("div", { class: "muted", style: "font-size:12px" }, "The model must support tool (function) calling. Restart NebuLens after changing these."))),
           me && me.role ? panel("Identity & access", el("div", { class: "col" },
             el("div", { class: "kv", style: "margin:-12px -14px" }, ...[["Signed in as", me.name ? `${me.name} (${me.actor})` : me.actor], ["Role", me.role], ["Via", me.via === "session" ? "Single sign-on" : me.via === "token" ? "API token" : "Open access (no auth configured)"]].flatMap(([k, v]) => [el("div", {}, k), el("div", {}, v)])),
             el("div", { class: "muted", style: "font-size:12px;padding-top:8px" }, "Viewers can read everything. Editors can also create and change dashboards, alerts, SLOs and synthetic checks. Admins can also read the audit log."))) : null,
           audit ? panel("Audit log", audit.length ? el("div", { style: "max-height:320px;overflow:auto;margin:-12px -14px" }, el("table", { style: "width:100%;border-collapse:collapse;font-size:12px" }, el("tbody", {}, ...audit.map(a => el("tr", { style: "border-bottom:1px solid var(--line)" }, el("td", { class: "muted", style: "padding:6px 10px;white-space:nowrap" }, new Date(a.ts / 1e6).toLocaleString()), el("td", { style: "padding:6px 8px" }, a.actor), el("td", { class: "mono", style: "padding:6px 8px" }, a.method + " " + a.path), el("td", { style: "padding:6px 10px;text-align:right" }, String(a.status))))))) : el("div", { class: "muted" }, "Nothing recorded yet. Changes and sign-ins appear here.")) : null,
           panel("Display", el("div", { class: "col" }, field("Theme", theme), field("Default time range", rng))),
-          panel("This Oscilyx", stats ? el("div", { class: "kv", style: "margin:-12px -14px" }, ...[["Spans stored", stats.spans.toLocaleString()], ["Log records", stats.logs.toLocaleString()], ["Metric points", stats.metrics.toLocaleString()], ["Services", stats.services], ["Alert rules", stats.alert_rules], ["Synthetic checks", stats.synthetics], ["Retention", stats.retention_hours + " hours"], ["Database", stats.db_path]].flatMap(([k, v]) => [el("div", {}, k), el("div", { class: "mono" }, String(v))])) : empty("Stats unavailable"))));
+          panel("This NebuLens", stats ? el("div", { class: "kv", style: "margin:-12px -14px" }, ...[["Spans stored", stats.spans.toLocaleString()], ["Log records", stats.logs.toLocaleString()], ["Metric points", stats.metrics.toLocaleString()], ["Services", stats.services], ["Alert rules", stats.alert_rules], ["Synthetic checks", stats.synthetics], ["Retention", stats.retention_hours + " hours"], ["Database", stats.db_path]].flatMap(([k, v]) => [el("div", {}, k), el("div", { class: "mono" }, String(v))])) : empty("Stats unavailable"))));
     },
   });
 
   // ============================================================ INTEGRATIONS
   // Grid of integration cards + a detail page with Setup / Dashboards / Alerts / Views tabs.
-  // Install is one click; a page banner shows whether Oscilyx is actually receiving data for that
+  // Install is one click; a page banner shows whether NebuLens is actually receiving data for that
   // integration, so a missing-data problem shows up clearly rather than as "dashboard looks empty".
 
   function iconFor(category) {
@@ -450,7 +450,7 @@
             " in the last hour."));
       else if (d.installed)
         banner.append(el("span", { class: "chip warn" }, "No data yet"),
-          el("span", {}, "The dashboards and views are installed, but Oscilyx has not seen any telemetry from this source. Follow the Setup instructions."));
+          el("span", {}, "The dashboards and views are installed, but NebuLens has not seen any telemetry from this source. Follow the Setup instructions."));
       else
         banner.append(el("span", { class: "chip" }, "Ready to install"),
           el("span", {}, "Click Install to add this integration's dashboards and views."));
@@ -508,7 +508,7 @@
           : empty("No views in this integration", ""));
       } else if (tab === "detect") {
         body.append(
-          el("h4", { style: "margin:0 0 8px" }, "What Oscilyx looks for"),
+          el("h4", { style: "margin:0 0 8px" }, "What NebuLens looks for"),
           el("div", { class: "muted", style: "font-size:13px;margin-bottom:12px" },
             "Integration is reported as Active when any of the attributes or metric names below are seen in the last 60 minutes."),
           el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:16px" },
@@ -535,7 +535,7 @@
         wz.complete ? "● All steps complete" : (wz.steps.filter(s => s.ok).length + " of " + wz.steps.length + " steps done")),
       el("span", {}, wz.complete
         ? "Your cluster is fully instrumented. The dashboards and views on this integration are ready to use."
-        : "Follow the steps below. Each step turns green when Oscilyx detects the expected telemetry.")));
+        : "Follow the steps below. Each step turns green when NebuLens detects the expected telemetry.")));
 
     const steps = el("ol", { class: "k8s-wizard" });
     const stepCmds = {
@@ -544,18 +544,18 @@
         code: `kubectl -n observability get pods -o wide`,
       },
       "monitor-namespace": {
-        label: "Point an existing OpenTelemetry SDK or agent at Oscilyx",
+        label: "Point an existing OpenTelemetry SDK or agent at NebuLens",
         code: `# Via the node collector (OTLP/HTTP, port 4319; gRPC is 4317):
-OTEL_EXPORTER_OTLP_ENDPOINT=http://oscilyx-collector.observability.svc.cluster.local:4319
+OTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens-collector.observability.svc.cluster.local:4319
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 
-# Or straight to Oscilyx (OTLP/HTTP, port 4318):
-OTEL_EXPORTER_OTLP_ENDPOINT=http://oscilyx.observability.svc.cluster.local:4318`,
+# Or straight to NebuLens (OTLP/HTTP, port 4318):
+OTEL_EXPORTER_OTLP_ENDPOINT=http://nebulens.observability.svc.cluster.local:4318`,
       },
       "instrument-workload": {
         label: "Enable the OpenTelemetry Operator once, then instrument a Deployment",
-        code: `# 1) one-time: turn on the operator in the Oscilyx release (from your chart directory)
-helm -n observability upgrade oscilyx ./helm/oscilyx --reset-then-reuse-values \\
+        code: `# 1) one-time: turn on the operator in the NebuLens release (from your chart directory)
+helm -n observability upgrade nebulens ./helm/nebulens --reset-then-reuse-values \\
   --set opentelemetry-operator.enabled=true --wait
 
 # 2) per workload (java | dotnet | python | nodejs | go); the pod restarts once
@@ -568,7 +568,7 @@ scripts/instrument.sh java -n my-namespace my-deployment
 kubectl -n my-namespace run curl --image=curlimages/curl -it --rm -- \
   curl -s http://my-app/health
 
-# Then open Oscilyx → Traces. You should see one span per request.`,
+# Then open NebuLens → Traces. You should see one span per request.`,
       },
     };
     for (let i = 0; i < wz.steps.length; i++) {
@@ -618,7 +618,7 @@ kubectl -n my-namespace run curl --image=curlimages/curl -it --rm -- \
         "Once a workload sends logs, traces or metrics, its namespace appears here with a coverage %."));
       return;
     }
-    const SYSTEM = new Set(["kube-system", "kube-public", "kube-node-lease", "observability", "oscilyx", "dash0-system"]);
+    const SYSTEM = new Set(["kube-system", "kube-public", "kube-node-lease", "observability", "nebulens", "dash0-system"]);
     const langPill = l => el("span", { class: "chip", title: "Instrumentation language" }, l);
     host.append(el("div", { class: "muted", style: "font-size:12.5px;margin-bottom:10px" },
       "Coverage is the share of services in the namespace that have an OpenTelemetry SDK or agent attached (telemetry.sdk.language)."),

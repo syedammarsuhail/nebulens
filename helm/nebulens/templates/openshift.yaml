@@ -4,15 +4,15 @@
 # minimum: a read-only host path and the host's user namespace. It does NOT grant privileged,
 # host networking, host PID or extra capabilities.
 # Creating an SCC needs cluster-admin at install time:
-#   helm install oscilyx ./helm/oscilyx -n oscilyx -f values-openshift.yaml
+#   helm install nebulens ./helm/nebulens -n nebulens -f values-openshift.yaml
 apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
-  name: {{ include "oscilyx.fullname" . }}-collector
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}-collector
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
   annotations:
     kubernetes.io/description: >-
-      Lets the Oscilyx log collector read /var/log on each node. No privilege escalation,
+      Lets the NebuLens log collector read /var/log on each node. No privilege escalation,
       no added capabilities, no host network.
 allowPrivilegedContainer: false
 allowPrivilegeEscalation: false
@@ -39,7 +39,7 @@ allowedHostPaths:
   - pathPrefix: /var/log
     readOnly: true
 users:
-  - system:serviceaccount:{{ .Release.Namespace }}:{{ include "oscilyx.fullname" . }}-collector
+  - system:serviceaccount:{{ .Release.Namespace }}:{{ include "nebulens.fullname" . }}-collector
 {{- end }}
 {{- if .Values.openshift.route.enabled }}
 ---
@@ -47,8 +47,8 @@ users:
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: {{ include "oscilyx.fullname" . }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
   {{- with .Values.openshift.route.annotations }}
   annotations: {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -58,7 +58,7 @@ spec:
   {{- end }}
   to:
     kind: Service
-    name: {{ include "oscilyx.fullname" . }}
+    name: {{ include "nebulens.fullname" . }}
     weight: 100
   port:
     targetPort: http

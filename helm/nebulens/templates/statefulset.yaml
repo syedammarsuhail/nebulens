@@ -1,24 +1,24 @@
-{{- if include "oscilyx.serverEnabled" . }}
+{{- if include "nebulens.serverEnabled" . }}
 {{- if and (gt (int .Values.replicaCount) 1) (not .Values.postgres.enabled) }}
 {{- fail "replicaCount > 1 requires postgres.enabled=true: with SQLite each replica would own its own database and your telemetry would be split across them. Set postgres.enabled=true and persistence.enabled=false, or keep replicaCount: 1." }}
 {{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "oscilyx.fullname" . }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "oscilyx.fullname" . }}
+  serviceName: {{ include "nebulens.fullname" . }}
   replicas: {{ .Values.replicaCount }}
   selector:
-    matchLabels: {{- include "oscilyx.selectorLabels" . | nindent 6 }}
+    matchLabels: {{- include "nebulens.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      labels: {{- include "oscilyx.selectorLabels" . | nindent 8 }}
+      labels: {{- include "nebulens.selectorLabels" . | nindent 8 }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
-      serviceAccountName: {{ include "oscilyx.serviceAccountName" . }}
+      serviceAccountName: {{ include "nebulens.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -29,14 +29,14 @@ spec:
           {{- if eq .Values.highAvailability.antiAffinity "hard" }}
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
-                matchLabels: {{- include "oscilyx.selectorLabels" . | nindent 18 }}
+                matchLabels: {{- include "nebulens.selectorLabels" . | nindent 18 }}
               topologyKey: kubernetes.io/hostname
           {{- else }}
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               podAffinityTerm:
                 labelSelector:
-                  matchLabels: {{- include "oscilyx.selectorLabels" . | nindent 20 }}
+                  matchLabels: {{- include "nebulens.selectorLabels" . | nindent 20 }}
                 topologyKey: kubernetes.io/hostname
           {{- end }}
       {{- if .Values.highAvailability.topologySpreadZones }}
@@ -45,14 +45,14 @@ spec:
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
-            matchLabels: {{- include "oscilyx.selectorLabels" . | nindent 14 }}
+            matchLabels: {{- include "nebulens.selectorLabels" . | nindent 14 }}
       {{- end }}
       {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: oscilyx
+        - name: nebulens
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.securityContext }}
@@ -63,27 +63,27 @@ spec:
               containerPort: 4318
               protocol: TCP
           env:
-            - name: OSCILYX_HOST
+            - name: NEBULENS_HOST
               value: "0.0.0.0"
-            - name: OSCILYX_PORT
+            - name: NEBULENS_PORT
               value: "4318"
-            - name: OSCILYX_DB
-              value: /data/oscilyx.db
+            - name: NEBULENS_DB
+              value: /data/nebulens.db
             {{- if not (has .Values.mode (list "selfhosted" "hosted")) }}
             {{- fail "mode must be 'selfhosted' or 'hosted'" }}
             {{- end }}
-            - name: OSCILYX_MODE
+            - name: NEBULENS_MODE
               value: {{ .Values.mode | quote }}
             {{- if eq .Values.mode "hosted" }}
-            - name: OSCILYX_DATA_DIR
+            - name: NEBULENS_DATA_DIR
               value: {{ .Values.hosted.dataDir | quote }}
-            - name: OSCILYX_ADMIN_TOKEN
+            - name: NEBULENS_ADMIN_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ required "hosted.adminTokenSecret (an existing Secret with the platform admin token) is required when mode=hosted" .Values.hosted.adminTokenSecret }}
                   key: {{ .Values.hosted.adminTokenKey }}
             {{- if .Values.hosted.allowAI }}
-            - name: OSCILYX_HOSTED_AI
+            - name: NEBULENS_HOSTED_AI
               value: "1"
             {{- end }}
             {{- end }}
@@ -92,87 +92,87 @@ spec:
               value: {{ $v | quote }}
             {{- end }}
             {{- if .Values.auth.existingSecret }}
-            - name: OSCILYX_TOKEN
+            - name: NEBULENS_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.auth.existingSecret }}
                   key: {{ .Values.auth.existingSecretTokenKey }}
             {{- else if .Values.auth.token }}
-            - name: OSCILYX_TOKEN
+            - name: NEBULENS_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oscilyx.fullname" . }}-auth
+                  name: {{ include "nebulens.fullname" . }}-auth
                   key: token
             {{- end }}
             {{- if .Values.auth.existingSecret }}
-            - name: OSCILYX_INGEST_TOKEN
+            - name: NEBULENS_INGEST_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.auth.existingSecret }}
                   key: {{ .Values.auth.existingSecretIngestKey }}
                   optional: true
             {{- else if .Values.auth.ingestToken }}
-            - name: OSCILYX_INGEST_TOKEN
+            - name: NEBULENS_INGEST_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "oscilyx.fullname" . }}-auth
+                  name: {{ include "nebulens.fullname" . }}-auth
                   key: ingestToken
             {{- end }}
             {{- if and .Values.auth.oidc.enabled (eq .Values.mode "selfhosted") }}
             {{- $o := .Values.auth.oidc }}
-            - { name: OSCILYX_OIDC_ISSUER, value: {{ required "auth.oidc.issuer is required when auth.oidc.enabled" $o.issuer | quote }} }
-            - { name: OSCILYX_OIDC_CLIENT_ID, value: {{ required "auth.oidc.clientId is required when auth.oidc.enabled" $o.clientId | quote }} }
-            - name: OSCILYX_OIDC_CLIENT_SECRET
+            - { name: NEBULENS_OIDC_ISSUER, value: {{ required "auth.oidc.issuer is required when auth.oidc.enabled" $o.issuer | quote }} }
+            - { name: NEBULENS_OIDC_CLIENT_ID, value: {{ required "auth.oidc.clientId is required when auth.oidc.enabled" $o.clientId | quote }} }
+            - name: NEBULENS_OIDC_CLIENT_SECRET
               valueFrom: { secretKeyRef: { name: {{ required "auth.oidc.existingSecret (with keys clientSecret and sessionSecret) is required when auth.oidc.enabled" $o.existingSecret }}, key: clientSecret } }
-            - name: OSCILYX_SESSION_SECRET
+            - name: NEBULENS_SESSION_SECRET
               valueFrom: { secretKeyRef: { name: {{ $o.existingSecret }}, key: sessionSecret } }
-            - { name: OSCILYX_OIDC_SCOPES, value: {{ $o.scopes | quote }} }
-            - { name: OSCILYX_OIDC_ROLE_CLAIM, value: {{ $o.roleClaim | quote }} }
-            - { name: OSCILYX_OIDC_ADMIN_GROUPS, value: {{ join "," $o.adminGroups | quote }} }
-            - { name: OSCILYX_OIDC_EDITOR_GROUPS, value: {{ join "," $o.editorGroups | quote }} }
-            - { name: OSCILYX_OIDC_VIEWER_GROUPS, value: {{ join "," $o.viewerGroups | quote }} }
-            - { name: OSCILYX_OIDC_DEFAULT_ROLE, value: {{ $o.defaultRole | quote }} }
-            - { name: OSCILYX_OIDC_ALLOWED_DOMAINS, value: {{ join "," $o.allowedDomains | quote }} }
-            - { name: OSCILYX_OIDC_REDIRECT_URL, value: {{ $o.redirectUrl | quote }} }
-            - { name: OSCILYX_SESSION_TTL_HOURS, value: {{ $o.sessionTtlHours | quote }} }
-            - { name: OSCILYX_OIDC_PROVIDER_NAME, value: {{ $o.providerName | quote }} }
+            - { name: NEBULENS_OIDC_SCOPES, value: {{ $o.scopes | quote }} }
+            - { name: NEBULENS_OIDC_ROLE_CLAIM, value: {{ $o.roleClaim | quote }} }
+            - { name: NEBULENS_OIDC_ADMIN_GROUPS, value: {{ join "," $o.adminGroups | quote }} }
+            - { name: NEBULENS_OIDC_EDITOR_GROUPS, value: {{ join "," $o.editorGroups | quote }} }
+            - { name: NEBULENS_OIDC_VIEWER_GROUPS, value: {{ join "," $o.viewerGroups | quote }} }
+            - { name: NEBULENS_OIDC_DEFAULT_ROLE, value: {{ $o.defaultRole | quote }} }
+            - { name: NEBULENS_OIDC_ALLOWED_DOMAINS, value: {{ join "," $o.allowedDomains | quote }} }
+            - { name: NEBULENS_OIDC_REDIRECT_URL, value: {{ $o.redirectUrl | quote }} }
+            - { name: NEBULENS_SESSION_TTL_HOURS, value: {{ $o.sessionTtlHours | quote }} }
+            - { name: NEBULENS_OIDC_PROVIDER_NAME, value: {{ $o.providerName | quote }} }
             {{- end }}
             {{- if .Values.postgres.enabled }}
-            - name: OSCILYX_DATABASE_URL
+            - name: NEBULENS_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ required "postgres.existingSecret is required when postgres.enabled" .Values.postgres.existingSecret }}
                   key: {{ .Values.postgres.secretKey }}
             {{- with .Values.postgres.schema }}
-            - name: OSCILYX_PG_SCHEMA
+            - name: NEBULENS_PG_SCHEMA
               value: {{ . | quote }}
             {{- end }}
             {{- end }}
             {{- if .Values.ai.enabled }}
-            # 'Ask Oscilyx' with the configured AI provider. optional:true so the pod still starts (in rule-based mode)
+            # 'Ask NebuLens' with the configured AI provider. optional:true so the pod still starts (in rule-based mode)
             # if the secret has not been created yet (or is not needed, for a local model); restart the pod after creating it.
-            - name: OSCILYX_AI_PROVIDER
+            - name: NEBULENS_AI_PROVIDER
               value: {{ .Values.ai.provider | default "anthropic" | quote }}
-            - name: OSCILYX_AI_API_KEY
+            - name: NEBULENS_AI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.ai.existingSecret }}
                   key: {{ .Values.ai.secretKey }}
                   optional: true
             {{- with .Values.ai.baseUrl }}
-            - name: OSCILYX_AI_BASE_URL
+            - name: NEBULENS_AI_BASE_URL
               value: {{ . | quote }}
             {{- end }}
             {{- with .Values.ai.model }}
-            - name: OSCILYX_AI_MODEL
+            - name: NEBULENS_AI_MODEL
               value: {{ . | quote }}
             {{- end }}
             {{- with .Values.ai.name }}
-            - name: OSCILYX_AI_NAME
+            - name: NEBULENS_AI_NAME
               value: {{ . | quote }}
             {{- end }}
             {{- with .Values.ai.keyHeader }}
-            - name: OSCILYX_AI_KEY_HEADER
+            - name: NEBULENS_AI_KEY_HEADER
               value: {{ . | quote }}
             {{- end }}
             {{- end }}

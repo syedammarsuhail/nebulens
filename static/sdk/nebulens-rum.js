@@ -1,8 +1,8 @@
-// Oscilyx RUM — a tiny browser agent (~5 KB). Sends page views, errors, and slow requests to Oscilyx as OTLP.
+// NebuLens RUM — a tiny browser agent (~5 KB). Sends page views, errors, and slow requests to NebuLens as OTLP.
 // No bundling, no dependencies: drop it on the page before your scripts and set the three config values.
 //
-//   <script src="https://oscilyx.example.com/sdk/oscilyx-rum.js"
-//           data-endpoint="https://oscilyx.example.com"
+//   <script src="https://nebulens.example.com/sdk/nebulens-rum.js"
+//           data-endpoint="https://nebulens.example.com"
 //           data-token="RUM_INGEST_TOKEN"
 //           data-service="checkout-frontend"></script>
 //
@@ -15,7 +15,7 @@
 
 (function () {
   "use strict";
-  var script = document.currentScript || document.querySelector('script[src*="oscilyx-rum"]') || document.querySelector('script[src*="pulse0-rum"]');
+  var script = document.currentScript || document.querySelector('script[src*="nebulens-rum"]') || document.querySelector('script[src*="pulse0-rum"]');
   if (!script) return;
   var ENDPOINT = (script.getAttribute("data-endpoint") || "").replace(/\/+$/, "");
   var TOKEN    = script.getAttribute("data-token") || "";
@@ -32,9 +32,9 @@
     .map(function (kv) { return { key: kv[0], value: typeof kv[1] === "number" ? { doubleValue: kv[1] } : { stringValue: String(kv[1]) } }; }); }
   function resource() {
     return { attributes: attrs({ "service.name": SERVICE, "deployment.environment": ENV,
-      "telemetry.sdk.name": "oscilyx-rum", "telemetry.sdk.language": "webjs",
+      "telemetry.sdk.name": "nebulens-rum", "telemetry.sdk.language": "webjs",
       "browser.user_agent": navigator.userAgent, "browser.language": navigator.language,
-      "oscilyx.session.id": SESSION }) };
+      "nebulens.session.id": SESSION }) };
   }
   function send(path, body) {
     var url = ENDPOINT + path, json = JSON.stringify(body);
@@ -133,9 +133,9 @@
     };
   }
 
-  // Export for custom events: window.oscilyx.event("name", {attrs})
-  window.oscilyx = window.oscilyx || {};
-  window.oscilyx.event = function (name, a) { sendLog(9, name, a || {}); };
-  window.oscilyx.error = function (msg, a) { sendLog(17, msg, a || {}); };
-  window.pulse0 = window.oscilyx;   // the old name, for pages written against Pulse0
+  // Export for custom events: window.nebulens.event("name", {attrs})
+  window.nebulens = window.nebulens || {};
+  window.nebulens.event = function (name, a) { sendLog(9, name, a || {}); };
+  window.nebulens.error = function (msg, a) { sendLog(17, msg, a || {}); };
+  window.pulse0 = window.nebulens;   // the old name, for pages written against Pulse0
 })();

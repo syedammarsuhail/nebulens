@@ -1,10 +1,10 @@
-{{- if include "oscilyx.serverEnabled" . }}
+{{- if include "nebulens.serverEnabled" . }}
 {{- if .Values.ingress.enabled -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "oscilyx.fullname" . }}
-  labels: {{- include "oscilyx.labels" . | nindent 4 }}
+  name: {{ include "nebulens.fullname" . }}
+  labels: {{- include "nebulens.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations: {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -25,7 +25,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "oscilyx.fullname" $ }}
+                name: {{ include "nebulens.fullname" $ }}
                 port: { number: {{ $.Values.service.port }} }
           {{- end }}
     {{- end }}

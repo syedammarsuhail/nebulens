@@ -1,0 +1,22 @@
+# systemd unit for running NebuLens without Docker. See ON-PREM.md, "VM without Docker".
+[Unit]
+Description=NebuLens observability server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nebulens
+Group=nebulens
+WorkingDirectory=/opt/nebulens
+EnvironmentFile=/etc/nebulens/nebulens.env
+ExecStart=/opt/nebulens/venv/bin/python -u server.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/nebulens
+
+[Install]
+WantedBy=multi-user.target

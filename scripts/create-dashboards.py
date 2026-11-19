@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Create the "Cluster - CPU & Memory" dashboard in Oscilyx and check that every panel has data.
-Usage:  python3 create-dashboards.py [--url http://<oscilyx-host>:4318] [--token TOKEN]
-        (default http://localhost:4318, e.g. with: kubectl -n observability port-forward svc/oscilyx 4318:4318)
-The token defaults to $OSCILYX_TOKEN, or is read from the oscilyx-auth Secret with kubectl. Safe to run again (it updates the
+"""Create the "Cluster - CPU & Memory" dashboard in NebuLens and check that every panel has data.
+Usage:  python3 create-dashboards.py [--url http://<nebulens-host>:4318] [--token TOKEN]
+        (default http://localhost:4318, e.g. with: kubectl -n observability port-forward svc/nebulens 4318:4318)
+The token defaults to $NEBULENS_TOKEN, or is read from the nebulens-auth Secret with kubectl. Safe to run again (it updates the
 dashboard by name)."""
 import argparse, json, os, subprocess, sys, urllib.parse, urllib.request
 
@@ -23,11 +23,11 @@ PANELS = [
 ]
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--url", default="http://localhost:4318"); ap.add_argument("--token", default=os.environ.get("OSCILYX_TOKEN", ""))
+    ap = argparse.ArgumentParser(); ap.add_argument("--url", default="http://localhost:4318"); ap.add_argument("--token", default=os.environ.get("NEBULENS_TOKEN", ""))
     a = ap.parse_args(); base = a.url.rstrip("/"); token = a.token
     if not token:
         try:
-            token = subprocess.run(["sh", "-c", "kubectl -n observability get secret oscilyx-auth -o jsonpath='{.data.token}' | base64 -d"],
+            token = subprocess.run(["sh", "-c", "kubectl -n observability get secret nebulens-auth -o jsonpath='{.data.token}' | base64 -d"],
                                    capture_output=True, text=True, timeout=20).stdout.strip()
         except Exception:
             token = ""
@@ -35,7 +35,7 @@ def main():
         req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None,
                                      headers={"Content-Type": "application/json", **({"Authorization": "Bearer " + token} if token else {})})
         try:
-            # Reviewed: the operator's own Oscilyx URL from --url.
+            # Reviewed: the operator's own NebuLens URL from --url.
             with urllib.request.urlopen(req, timeout=60) as r:  # nosec B310
                 return json.loads(r.read() or b"{}")
         except urllib.error.HTTPError as e:

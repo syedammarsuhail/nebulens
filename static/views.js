@@ -1,4 +1,4 @@
-/* Oscilyx pages, part 1: Home, Services, Service map, Traces, Logs */
+/* NebuLens pages, part 1: Home, Services, Service map, Traces, Logs */
 (function () {
   const P = window.P, { el, sv, icon, api, qs, compact, fmt, ms, pct, rate, clock, stamp, ago, sevName, pill, errPill, healthPill, copyText, chart, sparkline, dataTable, empty, panel, kpi, head, codeBlock, field, toast, setParams, nav, COLORS } = P;
   const M = () => P.minutes(), enc = encodeURIComponent;
@@ -18,12 +18,12 @@
       const [h, ins] = await Promise.all([api(`/home?minutes=${m}&buckets=60`), api("/insights?minutes=" + m)]);
       const t = h.totals, T = h.timeseries;
       if (!t.services && !t.logs) {
-        page.append(head("Welcome to Oscilyx", "Nothing has been received yet."), panel("Get started", el("div", { style: "display:flex;flex-direction:column;gap:12px;align-items:flex-start" }, el("div", { class: "muted" }, "Point any OpenTelemetry SDK or Collector at this server and data shows up within seconds."), el("a", { class: "btn primary", href: "#/setup" }, "Open setup guide"))));
+        page.append(head("Welcome to NebuLens", "Nothing has been received yet."), panel("Get started", el("div", { style: "display:flex;flex-direction:column;gap:12px;align-items:flex-start" }, el("div", { class: "muted" }, "Point any OpenTelemetry SDK or Collector at this server and data shows up within seconds."), el("a", { class: "btn primary", href: "#/setup" }, "Open setup guide"))));
         return;
       }
       const crit = ins.filter(i => i.severity === "critical").length;
       page.append(
-        head("Overview", `${t.services} services · ${compact(t.requests)} requests · ${compact(t.logs)} logs in the selected range`, el("button", { class: "btn", on: { click: () => P.openAsk("Give me an overview") } }, icon("sparkle", 15), "Ask Oscilyx")),
+        head("Overview", `${t.services} services · ${compact(t.requests)} requests · ${compact(t.logs)} logs in the selected range`, el("button", { class: "btn", on: { click: () => P.openAsk("Give me an overview") } }, icon("sparkle", 15), "Ask NebuLens")),
         el("div", { class: "kpis" },
           kpi("Requests", compact(t.requests), `${rate(t.rate)} req/s`, { spark: sparkline(T.map(x => x.rate), { w: 70, h: 24 }), href: "#/traces" }),
           kpi("Error rate", pct(t.err_pct), `${compact(t.errors)} failed`, { cls: t.err_pct >= 5 ? "err" : t.err_pct >= 1 ? "warn" : "ok", spark: sparkline(T.map(x => x.err_rate), { w: 70, h: 24, color: "var(--err)" }), href: "#/traces?errors=1" }),
@@ -77,7 +77,7 @@
           { key: "ts", label: "Trend", sort: false, render: r => sparkline((r.ts || []).map(x => x.rate), { w: 110, h: 26, color: errColor(r.err_pct) }) },
         ],
         onRow: r => nav("/services/" + enc(r.service)),
-        empty: (term || hf) ? empty("No services match", "Adjust the filters, or send traces with a service.name resource attribute.") : empty("No services in this time range", "Widen the time range, or point OpenTelemetry at Oscilyx if you have not sent data yet.", el("a", { class: "btn primary", href: "#/setup" }, "Setup & integrations")),
+        empty: (term || hf) ? empty("No services match", "Adjust the filters, or send traces with a service.name resource attribute.") : empty("No services in this time range", "Widen the time range, or point OpenTelemetry at NebuLens if you have not sent data yet.", el("a", { class: "btn primary", href: "#/setup" }, "Setup & integrations")),
       });
       const apply = () => {
         const t = search.value.trim().toLowerCase(), hv = hsel.value;
@@ -166,7 +166,7 @@
           { key: "dur_ms", label: "Duration", num: true, render: r => el("span", { style: "display:inline-flex;align-items:center;gap:8px;justify-content:flex-end" }, el("span", { class: "bar-in", style: `width:${Math.max(2, 70 * r.dur_ms / maxd)}px;background:${r.errors ? "var(--err)" : "var(--c1)"}` }), ms(r.dur_ms)) },
           { key: "spans", label: "Spans", num: true }, { key: "services", label: "Services", num: true },
           { key: "errors", label: "Status", num: true, render: r => r.errors ? pill(`${r.errors} error${r.errors > 1 ? "s" : ""}`, "err") : pill("OK", "ok") }, { key: "trace_id", label: "Trace ID", sort: false, render: r => el("span", { class: "chip" }, r.trace_id.slice(0, 12)) }],
-        onRow: r => { setParams({ id: r.trace_id }); openTrace(r.trace_id); }, empty: (state.service || state.errors || Number(state.min) > 0 || state.term) ? empty("No traces match", "Widen the time range or relax the filters.") : empty("No traces in this time range", "Widen the time range, or point OpenTelemetry at Oscilyx if you have not sent data yet.", el("a", { class: "btn primary", href: "#/setup" }, "Setup & integrations")),
+        onRow: r => { setParams({ id: r.trace_id }); openTrace(r.trace_id); }, empty: (state.service || state.errors || Number(state.min) > 0 || state.term) ? empty("No traces match", "Widen the time range or relax the filters.") : empty("No traces in this time range", "Widen the time range, or point OpenTelemetry at NebuLens if you have not sent data yet.", el("a", { class: "btn primary", href: "#/setup" }, "Setup & integrations")),
       });
       box.replaceChildren(el("section", { class: "panel fill" }, tbl));
     }
@@ -264,7 +264,7 @@
     function logDetail(r) {
       const ctx = ctxOf(r);
       const addFilter = (k, v) => { st.q = (st.q + " " + k + "=" + v).trim(); qin.value = st.q; tab = "table"; renderTabs(); update(); };
-      const attrs = Object.entries(r.attrs || {}).filter(([k]) => !k.startsWith("oscilyx."));
+      const attrs = Object.entries(r.attrs || {}).filter(([k]) => !k.startsWith("nebulens."));
       const chips = [el("span", { class: "lr-chip", title: "Filter to this service", on: { click: e => { e.stopPropagation(); st.service = r.service; update(); } } }, el("em", {}, "service"), r.service),
         ...K8S.filter(([k]) => ctx[k]).map(([k, label]) => el("span", { class: "lr-chip", title: "Filter: " + k + "=" + ctx[k],
           on: { click: e => { e.stopPropagation(); addFilter(k, ctx[k]); } } }, el("em", {}, label), ctx[k]))];
@@ -281,7 +281,7 @@
     }
     function logRow(r, fresh) {
       const sn = r.sev_text || sevName(r.severity);
-      const inferred = r.attrs && r.attrs["oscilyx.severity.inferred"];
+      const inferred = r.attrs && r.attrs["nebulens.severity.inferred"];
       const lines = (r.body || "").split("\n");
       const multiline = lines.length > 1;
       const pod = ctxOf(r)["k8s.pod.name"];
@@ -313,7 +313,7 @@
     // Slide-in detail panel. Reuses the shared drawer (same one traces use).
     function openLog(r) {
       const sn = r.sev_text || sevName(r.severity);
-      const inferred = r.attrs && r.attrs["oscilyx.severity.inferred"];
+      const inferred = r.attrs && r.attrs["nebulens.severity.inferred"];
       const attrs = Object.entries(r.attrs || {});
       const res = Object.entries(r.res && typeof r.res === "object" ? r.res : {});
       const kvTable = rows => el("div", { class: "kv", style: "border:1px solid var(--line);border-radius:8px;overflow:hidden" },
@@ -343,7 +343,7 @@
       count.textContent = `${rows.length}${rows.length >= 300 ? "+" : ""} entries`;
       if (live && rows.length) { const keep = rowsBox.scrollTop; const fresh = rows.filter(r => !seen.has(r.ts_ns + r.body + r.service)); rows.forEach(r => seen.add(r.ts_ns + r.body + r.service)); rowsBox.replaceChildren(...rows.map(r => logRow(r, fresh.includes(r)))); rowsBox.scrollTop = keep; return; }
       rows.forEach(r => seen.add(r.ts_ns + r.body + r.service));
-      rowsBox.replaceChildren(...(rows.length ? rows.map(r => logRow(r)) : [(st.service || Number(st.sev) > 0 || st.q) ? empty("No logs match", "Try another filter or a wider time range.") : empty("No logs in this time range", "Widen the time range, or point OpenTelemetry at Oscilyx if you have not sent data yet.", el("a", { class: "btn primary", href: "#/setup" }, "Setup & integrations"))]));
+      rowsBox.replaceChildren(...(rows.length ? rows.map(r => logRow(r)) : [(st.service || Number(st.sev) > 0 || st.q) ? empty("No logs match", "Try another filter or a wider time range.") : empty("No logs in this time range", "Widen the time range, or point OpenTelemetry at NebuLens if you have not sent data yet.", el("a", { class: "btn primary", href: "#/setup" }, "Setup & integrations"))]));
     }
     async function loadAside() {
       const win = { start_ms: st.from || "", end_ms: st.to || "" };
@@ -658,7 +658,7 @@
   // is for, why it is empty, and the two ways to connect a site (one line in the HTML, or injected at the proxy with no code change).
   function rumGuide(emptyState) {
     const origin = location.origin;
-    const tag = `<script src="${origin}/sdk/oscilyx-rum.js"
+    const tag = `<script src="${origin}/sdk/nebulens-rum.js"
         data-endpoint="${origin}"
         data-token="YOUR_INGEST_ONLY_TOKEN"
         data-service="my-website"></script>`;
@@ -675,7 +675,7 @@
     return el("div", { class: "rum-guide" },
       emptyState ? el("div", { class: "rum-hero" },
         el("div", { class: "rum-title" }, "No website connected yet"),
-        el("p", {}, "This page shows what real visitors experience in their browsers. It fills as soon as a website loads the small Oscilyx browser script. ",
+        el("p", {}, "This page shows what real visitors experience in their browsers. It fills as soon as a website loads the small NebuLens browser script. ",
           "Your services, traces, logs and Kubernetes data do not depend on it.")) : null,
       el("div", { class: "rum-cols" },
         el("div", {},
@@ -688,8 +688,8 @@
         el("div", {},
           el("div", { class: "sect" }, "Before you start"),
           el("ul", { class: "rum-list" },
-            item("Use an ingest-only token.", "Anyone can read a web page's source, so never put the admin token there. Set OSCILYX_INGEST_TOKEN on Oscilyx and use that value."),
-            item("Reachable address.", "Visitors' browsers must reach " + origin + ". If this address is internal, publish Oscilyx (or just /v1/ and /sdk/) on a public URL and use that instead."),
+            item("Use an ingest-only token.", "Anyone can read a web page's source, so never put the admin token there. Set NEBULENS_INGEST_TOKEN on NebuLens and use that value."),
+            item("Reachable address.", "Visitors' browsers must reach " + origin + ". If this address is internal, publish NebuLens (or just /v1/ and /sdk/) on a public URL and use that instead."),
             item("Content-Security-Policy.", "If the site sets one, allow this address in script-src and connect-src.")))),
       el("div", { class: "sect" }, "Option 1: the developer adds one line to the site's HTML (e.g. index.html, before </head>)"),
       code(tag),

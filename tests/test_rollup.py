@@ -193,7 +193,7 @@ def test_search_uses_registries_and_bounds_traces(client, ingest):
 def test_session_secret_persists_beside_the_database(srv):
     import os
     assert srv._load_session_secret() == srv._load_session_secret()          # stable across calls (and so across restarts)
-    if not os.environ.get("OSCILYX_SESSION_SECRET") and not srv.USE_PG:
+    if not os.environ.get("NEBULENS_SESSION_SECRET") and not srv.USE_PG:
         assert os.path.exists(srv.DB_PATH + ".session-secret")
 
 

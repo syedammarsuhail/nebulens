@@ -1,13 +1,13 @@
-# Oscilyx on Azure Kubernetes Service (AKS)
+# NebuLens on Azure Kubernetes Service (AKS)
 #
 #   az acr login --name <registry>
-#   docker tag oscilyx:0.1.0 <registry>.azurecr.io/oscilyx:0.1.0 && docker push <registry>.azurecr.io/oscilyx:0.1.0
+#   docker tag nebulens:0.1.0 <registry>.azurecr.io/nebulens:0.1.0 && docker push <registry>.azurecr.io/nebulens:0.1.0
 #   az aks update -n <cluster> -g <rg> --attach-acr <registry>        # lets AKS pull without a secret
-#   helm upgrade --install oscilyx ./helm/oscilyx -n observability --create-namespace \
-#     -f helm/oscilyx/values-aks.yaml --set auth.token=<CHOOSE_A_TOKEN>
+#   helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
+#     -f helm/nebulens/values-aks.yaml --set auth.token=<CHOOSE_A_TOKEN>
 
 image:
-  repository: <registry>.azurecr.io/oscilyx     # push to ACR; attach ACR to AKS
+  repository: <registry>.azurecr.io/nebulens     # push to ACR; attach ACR to AKS
   tag: "0.1.0"
 
 # STORAGE — check what the cluster offers:  kubectl get storageclass
@@ -36,39 +36,39 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     cert-manager.io/cluster-issuer: letsencrypt   # if using cert-manager
-    # Keep Oscilyx off the public internet (recommended):
+    # Keep NebuLens off the public internet (recommended):
     # service.beta.kubernetes.io/azure-load-balancer-internal: "true"
   hosts:
-    - host: oscilyx.internal.yourcompany.com
+    - host: nebulens.internal.yourcompany.com
       paths: [{ path: /, pathType: Prefix }]
   tls:
-    - hosts: [oscilyx.internal.yourcompany.com]
-      secretName: oscilyx-tls
+    - hosts: [nebulens.internal.yourcompany.com]
+      secretName: nebulens-tls
 
 # SECRETS — do not leave a token in this file for production. Two Azure-native options:
 #   1. Key Vault + the Secrets Store CSI driver (az aks enable-addons --addons azure-keyvault-secrets-provider),
-#      which syncs a Kubernetes Secret named oscilyx-auth with key "token".
+#      which syncs a Kubernetes Secret named nebulens-auth with key "token".
 #   2. Workload Identity, if you fetch secrets in your own init container.
 # Either way, create the Secret out of band and leave auth.token empty.
 auth:
   # Create the Secret yourself (Key Vault CSI, External Secrets, Sealed Secrets) with keys
   # "token" and optionally "ingestToken", then name it here. Nothing sensitive lives in git.
-  existingSecret: oscilyx-auth
+  existingSecret: nebulens-auth
   # Alternatively, for a quick evaluation only:
   #   --set auth.existingSecret="" --set auth.token=<CHOOSE_A_TOKEN>
 
 # SSO with Microsoft Entra ID (formerly Azure AD). Create an app registration, add the redirect URI
 # https://<your-host>/auth/callback, and add the "groups" claim to the ID token. Then set these as
 # environment variables or --set values (never commit the client secret):
-#   OSCILYX_OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
-#   OSCILYX_OIDC_CLIENT_ID / OSCILYX_OIDC_CLIENT_SECRET
-#   OSCILYX_OIDC_ROLE_CLAIM=groups
-#   OSCILYX_OIDC_ADMIN_GROUPS=<entra-group-object-id>
+#   NEBULENS_OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+#   NEBULENS_OIDC_CLIENT_ID / NEBULENS_OIDC_CLIENT_SECRET
+#   NEBULENS_OIDC_ROLE_CLAIM=groups
+#   NEBULENS_OIDC_ADMIN_GROUPS=<entra-group-object-id>
 # Entra sends group object IDs, not names, so use the GUIDs.
 env:
-  OSCILYX_RETENTION_HOURS: "168"
-  OSCILYX_TRUST_PROXY: "1"            # behind an ingress: record the real client IP in the audit log
-  OSCILYX_AUDIT_RETENTION_DAYS: "365"
+  NEBULENS_RETENTION_HOURS: "168"
+  NEBULENS_TRUST_PROXY: "1"            # behind an ingress: record the real client IP in the audit log
+  NEBULENS_AUDIT_RETENTION_DAYS: "365"
 
 collector:
   enabled: true
@@ -76,7 +76,7 @@ collector:
     limits: { cpu: 500m, memory: 512Mi }
     requests: { cpu: 100m, memory: 128Mi }
 
-# Zero-code tracing for AKS workloads (installs the OpenTelemetry Operator alongside Oscilyx).
+# Zero-code tracing for AKS workloads (installs the OpenTelemetry Operator alongside NebuLens).
 # Skip if the Operator is already on the cluster.
 opentelemetry-operator:
   enabled: false

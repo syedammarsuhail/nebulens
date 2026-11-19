@@ -1,18 +1,21 @@
-> **v11.0** — **Pulse0 is now Oscilyx.** Image tag `oscilyx_11_0`, chart `oscilyx` `0.4.0` (includes v10.23 and earlier below).
-> - **New name everywhere you see it:** the UI, browser title, logo, the assistant ("Ask Oscilyx"), docs, the Helm chart
->   (`helm/oscilyx`), the VM files (`deploy/vm/oscilyx.env.example`, `oscilyx.service`) and the package
->   (`oscilyx-onprem-v11_0.tar.gz`).
-> - **New, more professional colour theme** (graphite with a cyan signal accent, in dark and light mode) and a matching logo.
+> **v11.1** — **Pulse0 is now NebuLens.** Image tag `nebulens_11_1`, chart `nebulens` `0.4.1` (includes v10.23 and earlier below).
+> v11.0 was published briefly under the name Oscilyx; v11.1 replaces it. Everything below that keeps Pulse0 installs working
+> applies to Oscilyx installs too (`OSCILYX_*` settings, `oscilyx.db`, the `oscilyx` Postgres schema, `x-oscilyx-*` headers and
+> `/sdk/oscilyx-rum.js`).
+> - **New name everywhere you see it:** the UI, browser title, logo, the assistant ("Ask NebuLens"), docs, the Helm chart
+>   (`helm/nebulens`), the VM files (`deploy/vm/nebulens.env.example`, `nebulens.service`) and the package
+>   (`nebulens-onprem-v11_1.tar.gz`).
+> - **New, more professional colour theme** (deep-space indigo with a violet nebula accent, in dark and light mode) and a new lens logo.
 > - **Existing Pulse0 installs keep working without changes:**
->   - Settings: `OSCILYX_*` are the new names; every old `PULSE0_*` variable is still read (when both are set, `OSCILYX_*` wins).
->   - Data: an existing `pulse0.db` is used while no `oscilyx.db` exists beside it; on Postgres the `pulse0` schema is used when the
->     database has no `oscilyx` schema yet (unless `OSCILYX_PG_SCHEMA` / `postgres.schema` says otherwise).
->   - Ingest and API: the `x-pulse0-key` / `x-pulse0-project` headers are still accepted next to `x-oscilyx-key` /
->     `x-oscilyx-project`. The browser script is also served at its old URL `/sdk/pulse0-rum.js`, and `window.pulse0` still works.
+>   - Settings: `NEBULENS_*` are the new names; every old `PULSE0_*` variable is still read (when both are set, `NEBULENS_*` wins).
+>   - Data: an existing `pulse0.db` is used while no `nebulens.db` exists beside it; on Postgres the `pulse0` schema is used when the
+>     database has no `nebulens` schema yet (unless `NEBULENS_PG_SCHEMA` / `postgres.schema` says otherwise).
+>   - Ingest and API: the `x-pulse0-key` / `x-pulse0-project` headers are still accepted next to `x-nebulens-key` /
+>     `x-nebulens-project`. The browser script is also served at its old URL `/sdk/pulse0-rum.js`, and `window.pulse0` still works.
 >   - Kubernetes auto-instrumentation still honours the `pulse0.io/instrument` and `pulse0.io/language` labels.
 >   - Users signed in with SSO sign in once more (the session cookie was renamed).
 > - **Helm upgrade of an existing `pulse0` release** (keeps the same StatefulSet and volume):
->   `helm -n observability upgrade pulse0 ./helm/oscilyx --reset-then-reuse-values --set nameOverride=pulse0 --set fullnameOverride=pulse0 --set-string image.tag=oscilyx_11_0`.
+>   `helm -n observability upgrade pulse0 ./helm/nebulens --reset-then-reuse-values --set nameOverride=pulse0 --set fullnameOverride=pulse0 --set-string image.tag=nebulens_11_1`.
 >   Without the two overrides Kubernetes would create new resources with a new, empty volume. New installs need neither.
 >
 > **v10.23** — image tag `pulse_10_23`, chart `0.3.4` (includes v10.22 and earlier below). Security release; every change below
@@ -25,7 +28,7 @@
 > - **Synthetic checks and alert webhooks can no longer reach the cloud metadata service** (169.254.169.254 and other link-local
 >   addresses, which hand out instance credentials), in every mode, and redirects are re-checked. Private addresses stay allowed
 >   on self-hosted installs (checking internal services is what synthetics are for).
-> - The AI endpoint (`OSCILYX_AI_BASE_URL`) must be http(s).
+> - The AI endpoint (`NEBULENS_AI_BASE_URL`) must be http(s).
 > - **New: remove an environment** (Environments page, *Remove* on each card): *Remove from list* (keeps the data; editors) or
 >   *Remove and delete its data* (permanently deletes its spans, logs, metrics and summaries, in the background; admins only,
 >   recorded in the audit log). API: `DELETE /api/environments/{slug}`, `POST /api/environments/{slug}/purge`.
@@ -56,20 +59,20 @@
 > ON-PREM.md: the Community service limit in Troubleshooting now says 10 (it said 5; the limit has been 10).
 >
 > **v10.19** — image tag `pulse_10_19` (includes v10.18 and earlier below).
-> - **AI answers are Pro, with a free daily allowance on Community.** Community gets `OSCILYX_COMMUNITY_AI_DAILY` AI answers per day
+> - **AI answers are Pro, with a free daily allowance on Community.** Community gets `NEBULENS_COMMUNITY_AI_DAILY` AI answers per day
 >   (default 20, resets 00:00 UTC; `0` = Pro-only); then the panel offers Pro and keeps answering with the free rule-based analysis.
 >   Pro and the trial are unlimited and show a `PRO` (or `PRO · trial`) tag. The panel shows "n of N free today", an "AI answers · PRO"
 >   card on opening and the moment the last free answer is used, and Settings → AI assistant shows the plan and the allowance.
 >   `/api/assistant/status` adds `pro`, `trial`, `quota`, `locked`.
 > - **Service map:** the minimap (bottom right) is off by default; the new button under the zoom controls turns it on (remembered
 >   per browser). New calls appear on the map immediately again on small installs and demos (the newest minutes are included
->   automatically while traffic is light, `OSCILYX_MAP_TAIL=auto`; under heavy load the map trails by about 2 minutes as in v10.12).
+>   automatically while traffic is light, `NEBULENS_MAP_TAIL=auto`; under heavy load the map trails by about 2 minutes as in v10.12).
 >
 > **v10.18** — image tag `pulse_10_18` (includes v10.17 and earlier below).
-> - **The AI assistant works with any LLM, not only Claude.** `OSCILYX_AI_PROVIDER=anthropic` (Claude, official SDK, unchanged) or
->   `OSCILYX_AI_PROVIDER=openai` for any OpenAI-compatible chat-completions endpoint: OpenAI, Azure OpenAI (`OSCILYX_AI_KEY_HEADER=api-key`),
+> - **The AI assistant works with any LLM, not only Claude.** `NEBULENS_AI_PROVIDER=anthropic` (Claude, official SDK, unchanged) or
+>   `NEBULENS_AI_PROVIDER=openai` for any OpenAI-compatible chat-completions endpoint: OpenAI, Azure OpenAI (`NEBULENS_AI_KEY_HEADER=api-key`),
 >   Groq, Mistral, OpenRouter, Together, or a self-hosted model (Ollama, vLLM, LM Studio) so nothing leaves your network.
->   Settings: `OSCILYX_AI_BASE_URL`, `OSCILYX_AI_MODEL`, `OSCILYX_AI_API_KEY` (optional for local servers), `OSCILYX_AI_NAME` (UI label).
+>   Settings: `NEBULENS_AI_BASE_URL`, `NEBULENS_AI_MODEL`, `NEBULENS_AI_API_KEY` (optional for local servers), `NEBULENS_AI_NAME` (UI label).
 >   The model must support tool (function) calling. No new dependency: the OpenAI-compatible path uses the standard library.
 > - **Existing installs keep working:** `ANTHROPIC_API_KEY` alone still means Claude. In Helm, `ai.provider` defaults to `anthropic`
 >   and the old secret name still works; new values `ai.provider`, `ai.baseUrl`, `ai.model`, `ai.name`, `ai.keyHeader`.
@@ -78,7 +81,7 @@
 > - `/api/assistant/status` and `/api/assistant` now report `mode: "llm"` (was `"claude"`) plus `provider` and `name`.
 >
 > **v10.17** — image tag `pulse_10_17` (includes v10.16 and earlier below).
-> - **New logo:** the Oscilyx mark is now a heartbeat (ECG) line on the brand gradient, in the header and as the browser-tab icon.
+> - **New logo:** the NebuLens mark is now a heartbeat (ECG) line on the brand gradient, in the header and as the browser-tab icon.
 >
 > **v10.16** — image tag `pulse_10_16` (includes v10.15 and earlier below).
 > - **Fix: the "Get Pro" dialog was covered by the trial banner** (the banner sat above dialogs, drawers and the search palette), and
@@ -89,7 +92,7 @@
 > **v10.15** — image tag `pulse_10_15` (includes v10.14 and earlier below).
 > - **Environments page: 7.0 s -> fast.** The page also loads `/api/environments/discover` for the last 24 hours and waits for it;
 >   that call scanned a whole day of spans and logs. It now reads the per-minute environment counts.
-> - **Startup log says when the background fills are done.** Look for these lines in `kubectl -n observability logs oscilyx-0`:
+> - **Startup log says when the background fills are done.** Look for these lines in `kubectl -n observability logs nebulens-0`:
 >   `rollups ready: span rollup`, `rollups ready: environment counts`, `rollups ready: Kubernetes resource registry`.
 >   Until a line appears, the page it serves uses its older, slower query (never wrong numbers). On NFS this can take a while
 >   the first time on a large database; later restarts are instant.
@@ -122,7 +125,7 @@
 >     the 400 it returned made senders drop the batch. Rollup rows are now written in primary-key order, a transient database
 >     error is retried, and persistent trouble returns a retryable **503** (bad payloads stay 400). SQLite was not affected.
 >   * **Service map** no longer joins the newest minutes raw on every request (10 s+ at thousands of spans/s). It now trails live
->     traffic by about 2 minutes (`OSCILYX_EDGE_LAG_SECONDS`); set `OSCILYX_MAP_TAIL=1` for exact-to-the-second on small installs.
+>     traffic by about 2 minutes (`NEBULENS_EDGE_LAG_SECONDS`); set `NEBULENS_MAP_TAIL=1` for exact-to-the-second on small installs.
 >   * **Insights** judges "went silent" from the rollup. Measured at ~1.7M spans, 8 concurrent clients, cache bypassed: map
 >     9.9 s -> 0.09 s, insights 1.6 s -> 0.19 s, home 2.0 s -> 0.39 s, services ~0.09 s; rollup and raw spans reconcile exactly.
 >   * Not yet improved: the Traces list (~1.5 s at that size).
@@ -145,7 +148,7 @@
 > - Tests: 166.
 >
 > **v10.9** — image tag `pulse_10_9` (includes v10.8 and earlier below).
-> - SSO sessions now survive a restart: without `OSCILYX_SESSION_SECRET`, a generated secret is kept in a 0600 file beside the
+> - SSO sessions now survive a restart: without `NEBULENS_SESSION_SECRET`, a generated secret is kept in a 0600 file beside the
 >   SQLite database (`<db>.session-secret`). Set the env var explicitly when running more than one replica or on Postgres.
 > - The command-palette search reads the `services_seen` / `metric_names_seen` registries and looks back 24h for traces,
 >   instead of scanning whole tables.
@@ -158,10 +161,10 @@
 >   Tables are created automatically. Existing spans are back-filled in the background (newest first, resumes after a
 >   restart); until a window is covered, or for windows under 5 minutes, the old exact queries are used.
 >   Percentiles are within ~3% of exact; short-window counts can be up to ~2% high (the first minute is included whole).
-> - Map edges are added by the worker once spans are `OSCILYX_EDGE_LAG_SECONDS` (default 120) old so parents are stored.
+> - Map edges are added by the worker once spans are `NEBULENS_EDGE_LAG_SECONDS` (default 120) old so parents are stored.
 > - `/api/promql/label/service|env/values` read the small `services_seen` registry; `/api/traces/{id}` is capped at 20,000 spans.
 > - Chart: pod memory limit 1Gi -> 2Gi (request 1Gi). Large scans spill to disk when the working set exceeds memory.
-> - Tests: 163 (SQLite). Postgres run not done: run with `OSCILYX_TEST_PG_URL` before deploying there.
+> - Tests: 163 (SQLite). Postgres run not done: run with `NEBULENS_TEST_PG_URL` before deploying there.
 >
 > **v10.7** — image tag `pulse_10_7`, chart `0.3.1` (includes everything in v10.6 below).
 > - **Logs page: room for the log lines.** Drag across the chart to zoom into a time window; the entries, patterns, groups,
@@ -174,18 +177,18 @@
 >
 > **v10.6** — image tag `pulse_10_6`, chart `0.3.0`.
 > - **New: one console for many clusters.** *Clusters* page (admin): add a cluster, get its own ingest token and the install
->   commands. Agent-only install: `helm upgrade --install oscilyx-agent ./helm/oscilyx -f helm/oscilyx/values-agent.yaml`
+>   commands. Agent-only install: `helm upgrade --install nebulens-agent ./helm/nebulens -f helm/nebulens/values-agent.yaml`
 >   (`server.enabled=false`, `collector.remote.*`). The console stores everything sent with a cluster's token under that
 >   cluster, whatever the sender claims. The Kubernetes page has a cluster selector. New table `clusters` is created
 >   automatically; no migration step.
-> - **New: log and metric volume controls.** `OSCILYX_MIN_LOG_SEVERITY` / `OSCILYX_LOG_UNKNOWN_SEVERITY` (server),
+> - **New: log and metric volume controls.** `NEBULENS_MIN_LOG_SEVERITY` / `NEBULENS_LOG_UNKNOWN_SEVERITY` (server),
 >   `collector.logs.namespaces`, `collector.logs.minSeverity`, `collector.metrics.namespaces`, `collector.hostScrapers`
 >   (chart). All default to the previous behaviour.
 > - **New: `collector.clusterName`** stamps `k8s.cluster.name` on a cluster's telemetry (falls back to
->   `env.OSCILYX_CLUSTER_NAME`). The console also adds the cluster name to its own cluster's telemetry when it is missing.
+>   `env.NEBULENS_CLUSTER_NAME`). The console also adds the cluster name to its own cluster's telemetry when it is missing.
 > - **Fixes** the Kubernetes → Workloads tab (`parseHash is not defined`).
 > - Upgrade: build and push `plasmacomputing/microai:pulse_10_7`, then
->   `helm -n observability upgrade oscilyx ./helm/oscilyx --reset-then-reuse-values --set image.tag=pulse_10_7`.
+>   `helm -n observability upgrade nebulens ./helm/nebulens --reset-then-reuse-values --set image.tag=pulse_10_7`.
 >   If the upgrade fails with a webhook certificate error from the OpenTelemetry Operator, restart the operator deployment
 >   after the upgrade, or run the upgrade with `--no-hooks`.
 >
@@ -199,16 +202,16 @@
 >   Counts are per whole hour, so a 60-minute window spans the current and previous hour bucket. The table
 >   fills as metrics arrive (about a minute with 60s scrapes); nothing is back-filled from the raw table.
 > - **Includes** v10.1: Dockerfile copies `integrations.py` (pulse_10 crashed without it).
-> - **Kubernetes wizard/integration corrected**: collector HTTP port is 4319 (4318 is Oscilyx itself), removed an
->   invented namespace label, chart path is `./helm/oscilyx`, per-workload instrumentation uses `scripts/instrument.sh`.
+> - **Kubernetes wizard/integration corrected**: collector HTTP port is 4319 (4318 is NebuLens itself), removed an
+>   invented namespace label, chart path is `./helm/nebulens`, per-workload instrumentation uses `scripts/instrument.sh`.
 > - Tests: 136 SQLite / 135 Postgres 16 (+1 SQLite-only skipped).
 >
 > Upgrade: build `plasmacomputing/microai:pulse_10_3`, then
-> `helm -n observability upgrade oscilyx ./helm/oscilyx --reset-then-reuse-values --set image.tag=pulse_10_3`
-> then `kubectl -n observability delete pod oscilyx-0` only if the rollout does not replace the pod by itself.
+> `helm -n observability upgrade nebulens ./helm/nebulens --reset-then-reuse-values --set image.tag=pulse_10_3`
+> then `kubectl -n observability delete pod nebulens-0` only if the rollout does not replace the pod by itself.
 > The uid-1000 chown of `/data` is already done; nothing else to repeat.
 
-# Oscilyx v10 upgrade — Kubernetes monitoring, Dash0-style
+# NebuLens v10 upgrade — Kubernetes monitoring, Dash0-style
 
 **Deploy target:** `pulse_10` on cluster `cloudstgnewmaster52`, namespace `observability`.
 No database wipe. No Helm value changes beyond the image tag.
@@ -219,11 +222,11 @@ No database wipe. No Helm value changes beyond the image tag.
 
 1. **Setup wizard with live progress.** The Kubernetes integration's Setup tab now shows four
    numbered steps (Install → Monitor a namespace → Instrument a workload → See traces).
-   Each step goes green when Oscilyx actually sees the telemetry it expects — no trust-me checkboxes,
-   no "did you click yes?". The evidence line tells you what Oscilyx saw ("3 nodes reporting",
+   Each step goes green when NebuLens actually sees the telemetry it expects — no trust-me checkboxes,
+   no "did you click yes?". The evidence line tells you what NebuLens saw ("3 nodes reporting",
    "2 instrumented workloads", "14 spans in the last hour").
 
-2. **Namespaces tab.** Every namespace Oscilyx has seen in the last hour, with:
+2. **Namespaces tab.** Every namespace NebuLens has seen in the last hour, with:
    - service count
    - instrumented count + coverage %
    - signals flowing (spans / logs / metrics)
@@ -246,11 +249,11 @@ No database wipe. No Helm value changes beyond the image tag.
 
 ## Design notes
 
-Dash0 ships a Go operator with two CRDs (`Dash0OperatorConfiguration`, `Dash0Monitoring`). Oscilyx
+Dash0 ships a Go operator with two CRDs (`Dash0OperatorConfiguration`, `Dash0Monitoring`). NebuLens
 deliberately doesn't ship one — the existing `opentelemetry-operator` subchart already handles
-annotation-driven agent injection, and writing a second operator would duplicate it. What Oscilyx
+annotation-driven agent injection, and writing a second operator would duplicate it. What NebuLens
 adds instead is the **visibility layer**: you still use standard `instrumentation.opentelemetry.io/inject-*`
-annotations, but Oscilyx now reports back in real time which namespaces and workloads have been
+annotations, but NebuLens now reports back in real time which namespaces and workloads have been
 reached and which haven't. That's the part Dash0 charges for.
 
 ## Deploy
@@ -258,7 +261,7 @@ reached and which haven't. That's the part Dash0 charges for.
 On the build machine (LINDISHSTG101):
 
 ```bash
-cd /home/c2m/pulse/oscilyx-v10
+cd /home/c2m/pulse/nebulens-v10
 docker build -t plasmacomputing/microai:pulse_10 .
 docker push plasmacomputing/microai:pulse_10
 ```
@@ -267,22 +270,22 @@ On the master (cloudstgnewmaster52):
 
 ```bash
 # optional safety: snapshot values in case rollback is needed
-helm -n observability get values oscilyx > /tmp/oscilyx.v9.values.yaml
+helm -n observability get values nebulens > /tmp/nebulens.v9.values.yaml
 
-helm -n observability upgrade oscilyx ./oscilyx-onprem \
+helm -n observability upgrade nebulens ./nebulens-onprem \
   --reuse-values --set image.tag=pulse_10
 
-kubectl -n observability rollout status sts/oscilyx --timeout=120s
+kubectl -n observability rollout status sts/nebulens --timeout=120s
 ```
 
 Verify in the UI: Kubernetes (sidebar) → Setup. Four steps, each green once the matching telemetry
-arrives. If your Java agents have already been repointed at Oscilyx's collector (from v5's advice),
+arrives. If your Java agents have already been repointed at NebuLens's collector (from v5's advice),
 you should see them show up under Workloads with `language: java`.
 
 ## Rollback
 
 ```bash
-helm -n observability rollback oscilyx
+helm -n observability rollback nebulens
 ```
 
 v10 adds no new tables and no new required env vars. The rollback restores pulse_5 cleanly.

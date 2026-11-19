@@ -1,5 +1,5 @@
 # Exact versions this release was built and tested with (generated with: pip install -r requirements.txt && pip freeze).
-# requirements.txt lists what Oscilyx needs; this file pins everything so two builds ship identical libraries.
+# requirements.txt lists what NebuLens needs; this file pins everything so two builds ship identical libraries.
 annotated-doc==0.0.6
 annotated-types==0.8.0
 anthropic==2.8.0

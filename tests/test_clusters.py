@@ -29,7 +29,7 @@ def test_create_list_and_token_shown_once(client):
     assert row["status"] == "waiting" and row["note"] == "primary" and row["name"] == "Prod East"
     assert row["token_prefix"] == c["token"][:8]
     assert c["token"] not in json.dumps(lst)          # the full token is never returned again
-    assert lst["ingest_auth_required"] is True        # conftest sets OSCILYX_TOKEN
+    assert lst["ingest_auth_required"] is True        # conftest sets NEBULENS_TOKEN
 
 
 def test_duplicate_and_invalid_names(client):

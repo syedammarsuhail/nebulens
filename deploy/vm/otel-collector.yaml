@@ -30,22 +30,22 @@ processors:
   batch: {}
 
 exporters:
-  otlphttp/oscilyx:
-    endpoint: http://oscilyx:4318
+  otlphttp/nebulens:
+    endpoint: http://nebulens:4318
     headers:
-      Authorization: "Bearer ${env:OSCILYX_TOKEN}"
+      Authorization: "Bearer ${env:NEBULENS_TOKEN}"
 
 service:
   pipelines:
     metrics:
       receivers: [otlp, hostmetrics]
       processors: [memory_limiter, resourcedetection, resource/host, batch]
-      exporters: [otlphttp/oscilyx]
+      exporters: [otlphttp/nebulens]
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/oscilyx]
+      exporters: [otlphttp/nebulens]
     logs:
       receivers: [otlp]
       processors: [memory_limiter, batch]
-      exporters: [otlphttp/oscilyx]
+      exporters: [otlphttp/nebulens]

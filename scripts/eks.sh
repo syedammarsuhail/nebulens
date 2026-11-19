@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Oscilyx EKS pipeline: build on AWS (CodeBuild/ECR), deploy to a temporary EKS cluster, smoke-test, tear down.
+# NebuLens EKS pipeline: build on AWS (CodeBuild/ECR), deploy to a temporary EKS cluster, smoke-test, tear down.
 #
 #   scripts/eks.sh deploy      build image, create cluster if missing, helm install, wait for the load balancer
 #   scripts/eks.sh test        run scripts/smoke.py against the deployed load balancer
@@ -8,19 +8,19 @@
 #
 # Needs: aws, eksctl, kubectl, helm, python. No local Docker (images are built in CodeBuild).
 # Required env: SUPABASE_DB_URL   postgres connection string (kept in a Kubernetes secret, never printed)
-# Optional env: AWS_REGION (us-east-1)  CLUSTER_NAME (oscilyx-test)  IMAGE_TAG (git short sha)  OSCILYX_TOKEN
+# Optional env: AWS_REGION (us-east-1)  CLUSTER_NAME (nebulens-test)  IMAGE_TAG (git short sha)  NEBULENS_TOKEN
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
 REGION="${AWS_REGION:-us-east-1}"
-NAME="${CLUSTER_NAME:-oscilyx-test}"
+NAME="${CLUSTER_NAME:-nebulens-test}"
 NS=observability
-REPO_NAME=oscilyx-e2e
-ROLE=oscilyx-e2e-codebuild
-CB_PROJ=oscilyx-e2e-build
-# API token: use OSCILYX_TOKEN if given, else a random one that is generated once and kept in .eks-token (gitignored, removed
+REPO_NAME=nebulens-e2e
+ROLE=nebulens-e2e-codebuild
+CB_PROJ=nebulens-e2e-build
+# API token: use NEBULENS_TOKEN if given, else a random one that is generated once and kept in .eks-token (gitignored, removed
 # by teardown) so `test` and later `deploy` runs reuse it. There is no shared default token.
-if [ -n "${OSCILYX_TOKEN:-}" ]; then TOKEN="$OSCILYX_TOKEN"
+if [ -n "${NEBULENS_TOKEN:-}" ]; then TOKEN="$NEBULENS_TOKEN"
 elif [ -f .eks-token ]; then TOKEN="$(cat .eks-token)"
 else TOKEN="$(python -c 'import secrets;print(secrets.token_hex(16))' 2>/dev/null || python3 -c 'import secrets;print(secrets.token_hex(16))')"; (umask 077; printf '%s' "$TOKEN" > .eks-token); fi
 TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo latest)}"
@@ -38,9 +38,9 @@ need() { command -v "$1" >/dev/null || { echo "missing tool: $1" >&2; exit 1; };
 ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
 REGISTRY="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
 REPO="$REGISTRY/$REPO_NAME"
-BUCKET="oscilyx-e2e-src-$ACCOUNT"
+BUCKET="nebulens-e2e-src-$ACCOUNT"
 
-lb_host() { kubectl -n "$NS" get svc oscilyx -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true; }
+lb_host() { kubectl -n "$NS" get svc nebulens -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true; }
 
 build_image() {
   say "ECR repository"
@@ -170,7 +170,7 @@ EOF
 }
 
 # Create an RDS Postgres instance INSIDE the cluster's own VPC (private, reachable
-# only from the cluster) and export SUPABASE_DB_URL so deploy_app wires Oscilyx to it.
+# only from the cluster) and export SUPABASE_DB_URL so deploy_app wires NebuLens to it.
 RDS_STATE="$ROOT/.eks-rds-state"
 ensure_rds() {
   need aws; need python
@@ -183,13 +183,13 @@ ensure_rds() {
   subs="$(aws ec2 describe-subnets --filters Name=vpc-id,Values=$vpc --region "$REGION" --query 'Subnets[].SubnetId' --output text)"
   rid="$NAME-db"
 
-  rsg="$(aws ec2 create-security-group --group-name "$NAME-rds-sg" --description "oscilyx in-vpc rds" \
+  rsg="$(aws ec2 create-security-group --group-name "$NAME-rds-sg" --description "nebulens in-vpc rds" \
         --vpc-id "$vpc" --region "$REGION" --query GroupId --output text 2>/dev/null \
         || aws ec2 describe-security-groups --filters Name=group-name,Values=$NAME-rds-sg Name=vpc-id,Values=$vpc \
              --region "$REGION" --query 'SecurityGroups[0].GroupId' --output text)"
   aws ec2 authorize-security-group-ingress --group-id "$rsg" --protocol tcp --port 5432 --source-group "$csg" --region "$REGION" >/dev/null 2>&1 || true
   aws ec2 authorize-security-group-ingress --group-id "$rsg" --protocol tcp --port 5432 --cidr "$cidr" --region "$REGION" >/dev/null 2>&1 || true
-  aws rds create-db-subnet-group --db-subnet-group-name "$NAME-sng" --db-subnet-group-description "oscilyx" \
+  aws rds create-db-subnet-group --db-subnet-group-name "$NAME-sng" --db-subnet-group-description "nebulens" \
     --subnet-ids $subs --region "$REGION" >/dev/null 2>&1 || true
 
   if aws rds describe-db-instances --db-instance-identifier "$rid" --region "$REGION" >/dev/null 2>&1; then
@@ -200,7 +200,7 @@ ensure_rds() {
     pw="$(python -c 'import secrets,string;print("".join(secrets.choice(string.ascii_letters+string.digits) for _ in range(24)))')"
     aws rds create-db-instance --db-instance-identifier "$rid" \
       --db-instance-class "${RDS_CLASS:-db.t4g.small}" --engine postgres \
-      --master-username oscilyxadmin --master-user-password "$pw" \
+      --master-username nebulensadmin --master-user-password "$pw" \
       --allocated-storage 20 --storage-type gp3 \
       --db-subnet-group-name "$NAME-sng" --vpc-security-group-ids "$rsg" \
       --no-publicly-accessible --backup-retention-period 0 --no-multi-az \
@@ -210,7 +210,7 @@ ensure_rds() {
   say "Waiting for RDS to become available (8-12 min)"
   aws rds wait db-instance-available --db-instance-identifier "$rid" --region "$REGION"
   ep="$(aws rds describe-db-instances --db-instance-identifier "$rid" --region "$REGION" --query 'DBInstances[0].Endpoint.Address' --output text)"
-  export SUPABASE_DB_URL="postgresql://oscilyxadmin:${pw}@${ep}:5432/postgres"
+  export SUPABASE_DB_URL="postgresql://nebulensadmin:${pw}@${ep}:5432/postgres"
   echo "  RDS ready (private) at $ep in VPC $vpc"
 }
 
@@ -231,29 +231,29 @@ deploy_app() {
   if [ -n "${SUPABASE_DB_URL:-}" ]; then
     say "Database secret (Postgres backend)"
     kubectl create namespace "$NS" >/dev/null 2>&1 || true
-    kubectl -n "$NS" delete secret oscilyx-db >/dev/null 2>&1 || true
-    kubectl -n "$NS" create secret generic oscilyx-db --from-literal=database-url="$SUPABASE_DB_URL" >/dev/null
-    dbargs="--set postgres.enabled=true --set postgres.existingSecret=oscilyx-db --set persistence.enabled=false"
+    kubectl -n "$NS" delete secret nebulens-db >/dev/null 2>&1 || true
+    kubectl -n "$NS" create secret generic nebulens-db --from-literal=database-url="$SUPABASE_DB_URL" >/dev/null
+    dbargs="--set postgres.enabled=true --set postgres.existingSecret=nebulens-db --set persistence.enabled=false"
   else
     say "SQLite-on-EBS backend (no Postgres URL given)"
     dbargs="--set postgres.enabled=false --set persistence.enabled=true"
   fi
 
   say "Helm deploy"
-  helm lint ./helm/oscilyx
-  helm upgrade --install oscilyx ./helm/oscilyx -n "$NS" --create-namespace \
-    -f ./helm/oscilyx/values-eks.yaml \
+  helm lint ./helm/nebulens
+  helm upgrade --install nebulens ./helm/nebulens -n "$NS" --create-namespace \
+    -f ./helm/nebulens/values-eks.yaml \
     --set image.repository="$REPO" --set-string image.tag="$TAG" --set image.pullPolicy=Always \
     $dbargs \
     --set service.type=LoadBalancer \
     --set auth.token="$TOKEN" \
-    --set-string env.OSCILYX_CACHE_TTL=45 \
-    --set-string env.OSCILYX_RETENTION_HOURS="${RETENTION_HOURS:-6}" \
+    --set-string env.NEBULENS_CACHE_TTL=45 \
+    --set-string env.NEBULENS_RETENTION_HOURS="${RETENTION_HOURS:-6}" \
     --wait --timeout 8m
-  kubectl -n "$NS" rollout status statefulset/oscilyx --timeout=300s
+  kubectl -n "$NS" rollout status statefulset/nebulens --timeout=300s
 
   say "Demo apps"
-  sed -e "s#oscilyx-demo:local#$REPO:demo#" -e 's#IfNotPresent#Always#' ./demo/k8s-demo.yaml | kubectl apply -f -
+  sed -e "s#nebulens-demo:local#$REPO:demo#" -e 's#IfNotPresent#Always#' ./demo/k8s-demo.yaml | kubectl apply -f -
   for d in backend frontend loadgen; do kubectl -n demo rollout status "deploy/$d" --timeout=300s; done
   [ -d ./test-apps/shop/k8s ] && kubectl apply -f ./test-apps/shop/k8s/ >/dev/null 2>&1 || true
 
@@ -268,33 +268,33 @@ deploy_app() {
 }
 
 # Point a friendly Route53 hostname at the load balancer (CNAME).
-#   OSCILYX_DNS_NAME        desired hostname, e.g. oscilyx.example.com
-#   OSCILYX_HOSTED_ZONE_ID  the Route53 hosted zone that owns that domain
+#   NEBULENS_DNS_NAME        desired hostname, e.g. nebulens.example.com
+#   NEBULENS_HOSTED_ZONE_ID  the Route53 hosted zone that owns that domain
 dns() {
   need aws
-  : "${OSCILYX_DNS_NAME:?set OSCILYX_DNS_NAME to the desired hostname, e.g. oscilyx.example.com}"
-  : "${OSCILYX_HOSTED_ZONE_ID:?set OSCILYX_HOSTED_ZONE_ID to your Route53 hosted zone id}"
+  : "${NEBULENS_DNS_NAME:?set NEBULENS_DNS_NAME to the desired hostname, e.g. nebulens.example.com}"
+  : "${NEBULENS_HOSTED_ZONE_ID:?set NEBULENS_HOSTED_ZONE_ID to your Route53 hosted zone id}"
   local lb="${1:-}"
   if [ -z "$lb" ]; then
     aws eks update-kubeconfig --name "$NAME" --region "$REGION" >/dev/null 2>&1 || true
     lb="$(lb_host)"
   fi
   [ -n "$lb" ] || { echo "no load balancer found for $NAME; run deploy first" >&2; exit 1; }
-  say "Route53 CNAME $OSCILYX_DNS_NAME -> $lb"
+  say "Route53 CNAME $NEBULENS_DNS_NAME -> $lb"
   local batch; batch=".eks-dns.json"
   cat >"$batch" <<EOF
-{"Comment":"oscilyx endpoint","Changes":[{"Action":"UPSERT","ResourceRecordSet":{"Name":"$OSCILYX_DNS_NAME","Type":"CNAME","TTL":60,"ResourceRecords":[{"Value":"$lb"}]}}]}
+{"Comment":"nebulens endpoint","Changes":[{"Action":"UPSERT","ResourceRecordSet":{"Name":"$NEBULENS_DNS_NAME","Type":"CNAME","TTL":60,"ResourceRecords":[{"Value":"$lb"}]}}]}
 EOF
-  aws route53 change-resource-record-sets --hosted-zone-id "$OSCILYX_HOSTED_ZONE_ID" --change-batch "file://$batch" >/dev/null
+  aws route53 change-resource-record-sets --hosted-zone-id "$NEBULENS_HOSTED_ZONE_ID" --change-batch "file://$batch" >/dev/null
   rm -f "$batch"
-  echo "UI (DNS): http://$OSCILYX_DNS_NAME:4318   (propagates in ~1-2 min)"
-  echo "dns_url=http://$OSCILYX_DNS_NAME:4318" >>"${GITHUB_OUTPUT:-/dev/null}"
+  echo "UI (DNS): http://$NEBULENS_DNS_NAME:4318   (propagates in ~1-2 min)"
+  echo "dns_url=http://$NEBULENS_DNS_NAME:4318" >>"${GITHUB_OUTPUT:-/dev/null}"
 }
 
 # Run dns() only when both env vars are set; never fail the deploy if they are not.
 maybe_dns() {
-  [ -n "${OSCILYX_DNS_NAME:-}" ] && [ -n "${OSCILYX_HOSTED_ZONE_ID:-}" ] || {
-    echo "(no custom DNS: set OSCILYX_DNS_NAME + OSCILYX_HOSTED_ZONE_ID to get a friendly hostname)"
+  [ -n "${NEBULENS_DNS_NAME:-}" ] && [ -n "${NEBULENS_HOSTED_ZONE_ID:-}" ] || {
+    echo "(no custom DNS: set NEBULENS_DNS_NAME + NEBULENS_HOSTED_ZONE_ID to get a friendly hostname)"
     return 0
   }
   dns "${1:-}"
@@ -316,23 +316,23 @@ run_tests() {
 }
 
 teardown() {
-  if [ -n "${OSCILYX_DNS_NAME:-}" ] && [ -n "${OSCILYX_HOSTED_ZONE_ID:-}" ]; then
-    say "Removing Route53 record $OSCILYX_DNS_NAME"
+  if [ -n "${NEBULENS_DNS_NAME:-}" ] && [ -n "${NEBULENS_HOSTED_ZONE_ID:-}" ]; then
+    say "Removing Route53 record $NEBULENS_DNS_NAME"
     local cur
-    cur="$(aws route53 list-resource-record-sets --hosted-zone-id "$OSCILYX_HOSTED_ZONE_ID" \
-      --query "ResourceRecordSets[?Name=='${OSCILYX_DNS_NAME}.'].ResourceRecords[0].Value | [0]" --output text 2>/dev/null || true)"
+    cur="$(aws route53 list-resource-record-sets --hosted-zone-id "$NEBULENS_HOSTED_ZONE_ID" \
+      --query "ResourceRecordSets[?Name=='${NEBULENS_DNS_NAME}.'].ResourceRecords[0].Value | [0]" --output text 2>/dev/null || true)"
     if [ -n "$cur" ] && [ "$cur" != "None" ]; then
       cat >.eks-dns.json <<EOF
-{"Changes":[{"Action":"DELETE","ResourceRecordSet":{"Name":"$OSCILYX_DNS_NAME","Type":"CNAME","TTL":60,"ResourceRecords":[{"Value":"$cur"}]}}]}
+{"Changes":[{"Action":"DELETE","ResourceRecordSet":{"Name":"$NEBULENS_DNS_NAME","Type":"CNAME","TTL":60,"ResourceRecords":[{"Value":"$cur"}]}}]}
 EOF
-      aws route53 change-resource-record-sets --hosted-zone-id "$OSCILYX_HOSTED_ZONE_ID" --change-batch file://.eks-dns.json >/dev/null 2>&1 || true
+      aws route53 change-resource-record-sets --hosted-zone-id "$NEBULENS_HOSTED_ZONE_ID" --change-batch file://.eks-dns.json >/dev/null 2>&1 || true
       rm -f .eks-dns.json
     fi
   fi
   teardown_rds
   say "Removing load balancer service"
   if aws eks update-kubeconfig --name "$NAME" --region "$REGION" >/dev/null 2>&1; then
-    kubectl -n "$NS" delete svc oscilyx --ignore-not-found --timeout=180s || true
+    kubectl -n "$NS" delete svc nebulens --ignore-not-found --timeout=180s || true
   fi
   say "Deleting EKS cluster $NAME (15-20 min)"
   eksctl delete cluster --name "$NAME" --region "$REGION" --wait || true

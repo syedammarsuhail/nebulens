@@ -1,7 +1,7 @@
-/* Oscilyx multi-cluster console: register any number of Kubernetes clusters, give each its own ingest token, see which
+/* NebuLens multi-cluster console: register any number of Kubernetes clusters, give each its own ingest token, see which
    are sending, and get the install command for each. Loaded after core.js/views*.js. Admin only (the server enforces it). */
 (function () {
-  const P = window.Oscilyx;
+  const P = window.NebuLens;
   const { el, icon, head, panel, empty, codeBlock, field, modal, confirmBox, toast, pill, api, dataTable, ago, copyText } = P;
 
   const NAME_RE = /[a-z0-9]/i;
@@ -13,11 +13,11 @@
     return [
       "# 1. In the cluster you are connecting:",
       "kubectl create namespace observability",
-      `kubectl -n observability create secret generic oscilyx-cluster-token --from-literal=token=${tok}`,
+      `kubectl -n observability create secret generic nebulens-cluster-token --from-literal=token=${tok}`,
       "",
-      "# 2. Install the agent (collector only, no server) from the Oscilyx chart:",
-      "helm upgrade --install oscilyx-agent ./helm/oscilyx -n observability \\",
-      "  -f helm/oscilyx/values-agent.yaml \\",
+      "# 2. Install the agent (collector only, no server) from the NebuLens chart:",
+      "helm upgrade --install nebulens-agent ./helm/nebulens -n observability \\",
+      "  -f helm/nebulens/values-agent.yaml \\",
       `  --set collector.clusterName=${slug} \\`,
       `  --set collector.remote.endpoint=${endpoint || "<CONSOLE ENDPOINT>"}`,
       "",
@@ -33,7 +33,7 @@
     const paint = () => out.replaceChildren(codeBlock(installText(slug, endpoint.value.trim().replace(/\/+$/, ""), token)));
     endpoint.addEventListener("input", paint); paint();
     const body = el("div", { class: "col", style: "gap:12px" },
-      token ? el("div", { class: "tn-note warn" }, "Copy the token now. Oscilyx stores only a hash of it and cannot show it again. If you lose it, use Rotate token.") : null,
+      token ? el("div", { class: "tn-note warn" }, "Copy the token now. NebuLens stores only a hash of it and cannot show it again. If you lose it, use Rotate token.") : null,
       token ? field("Cluster token", el("div", { style: "display:flex;gap:6px" },
         el("input", { type: "text", readonly: true, value: token, style: "flex:1;font-family:var(--mono);font-size:12px", on: { focus: e => e.target.select() } }),
         el("button", { class: "btn sm", on: { click: () => copyText(token) } }, icon("copy", 13), "Copy"))) : null,
@@ -101,7 +101,7 @@
       if (!data.ingest_auth_required) {
         page.append(el("div", { class: "tn-note warn", style: "margin-bottom:12px" },
           "This console accepts telemetry without any token. Cluster tokens still decide which cluster each record belongs to, but anyone who can reach this address can also send data without one. " +
-          "Set auth.ingestToken in the Helm values (OSCILYX_INGEST_TOKEN) to refuse unauthenticated senders. The collector in this cluster then needs auth.token."));
+          "Set auth.ingestToken in the Helm values (NEBULENS_INGEST_TOKEN) to refuse unauthenticated senders. The collector in this cluster then needs auth.token."));
       }
       if (data.this_cluster) {
         page.append(el("div", { class: "muted", style: "font-size:12.5px;margin-bottom:10px" },

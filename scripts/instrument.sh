@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Turn Oscilyx zero-code tracing on (or off) for workloads. No code or image changes: the
+# Turn NebuLens zero-code tracing on (or off) for workloads. No code or image changes: the
 # OpenTelemetry Operator injects the language agent when the pod restarts.
 #
 #   scripts/instrument.sh <java|dotnet|python|nodejs|go> -n <namespace> <workload>... [options]
@@ -10,12 +10,12 @@
 #   --remove                                    switch tracing off again
 #   --dry-run                                   print what would change
 #
-# Environment: OSCILYX_NS (namespace where Oscilyx is installed, default observability),
-#              OSCILYX_INSTRUMENTATION (Instrumentation name, default oscilyx).
+# Environment: NEBULENS_NS (namespace where NebuLens is installed, default observability),
+#              NEBULENS_INSTRUMENTATION (Instrumentation name, default nebulens).
 set -euo pipefail
 
-PNS="${OSCILYX_NS:-observability}"
-INAME="${OSCILYX_INSTRUMENTATION:-oscilyx}"
+PNS="${NEBULENS_NS:-observability}"
+INAME="${NEBULENS_INSTRUMENTATION:-nebulens}"
 KIND=deployment; NS=""; REMOVE=0; MUSL=0; DRY=0; LANG_=""; WORKLOADS=()
 
 usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
@@ -41,7 +41,7 @@ done
 [ ${#WORKLOADS[@]} -gt 0 ] || { echo "error: give at least one workload name" >&2; usage; }
 case "$KIND" in deployment|statefulset|daemonset) ;; *) echo "error: --kind must be deployment, statefulset or daemonset" >&2; exit 1 ;; esac
 
-# The Instrumentation resource must exist (Operator installed + Oscilyx chart applied).
+# The Instrumentation resource must exist (Operator installed + NebuLens chart applied).
 if ! kubectl get instrumentation "$INAME" -n "$PNS" >/dev/null 2>&1; then
   echo "error: Instrumentation '$INAME' not found in namespace '$PNS'." >&2
   echo "       Install the Operator (helm ... --set opentelemetry-operator.enabled=true --wait) and re-run helm upgrade." >&2
@@ -66,4 +66,4 @@ for w in "${WORKLOADS[@]}"; do
     kubectl patch "${KIND}" "${w}" -n "${NS}" -p "${PATCH}"
   fi
 done
-[ "$DRY" -eq 1 ] || echo "Done. Pods restart now; traces appear in Oscilyx within a minute."
+[ "$DRY" -eq 1 ] || echo "Done. Pods restart now; traces appear in NebuLens within a minute."

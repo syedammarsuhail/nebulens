@@ -1,4 +1,4 @@
-/* Oscilyx assistant: LLM-backed chat (Claude, OpenAI or any OpenAI-compatible model) (SSE streaming, tool chips, markdown-lite) with transparent
+/* NebuLens assistant: LLM-backed chat (Claude, OpenAI or any OpenAI-compatible model) (SSE streaming, tool chips, markdown-lite) with transparent
    fallback to the rule-based /api/investigate. Overrides P.openAsk (see core.js). No build step. */
 (function () {
   const P = window.P, { el, icon, api, qs, store, toast } = P;
@@ -89,7 +89,7 @@
   const quota = () => P.aiStatus && P.aiStatus.quota;          // null on Pro / trial (unlimited)
   const isFree = () => !!(P.aiStatus && P.aiStatus.pro === false);
   const proTag = () => { const qt = quota();
-    return el("span", { class: "pro-tag" + (qt ? " free" : ""), title: qt ? `Community: ${qt.limit} free AI answers per day, then Pro` : "AI answers are part of Oscilyx Pro" },
+    return el("span", { class: "pro-tag" + (qt ? " free" : ""), title: qt ? `Community: ${qt.limit} free AI answers per day, then Pro` : "AI answers are part of NebuLens Pro" },
       qt ? `${qt.remaining} of ${qt.limit} free today` : P.aiStatus && P.aiStatus.trial ? "PRO · trial" : "PRO"); };
   const getPro = () => P.upgradeModal({ error: "pro_required", feature: "Unlimited AI answers" });
   const proCard = () => { const qt = quota(), left = qt ? qt.remaining : 0;
@@ -99,7 +99,7 @@
         ? `You have ${left} of ${qt.limit} free AI answers left today. An AI model queries your traces, logs, metrics, alerts and SLOs for you. Pro has unlimited AI answers.`
         : qt && qt.limit
           ? `You've used today's ${qt.limit} free AI answers (they reset at ${qt.resets}). Pro has unlimited AI answers with Claude, OpenAI or your own model.`
-          : "Ask in plain English and get answers from an AI model that queries your traces, logs, metrics, alerts and SLOs for you. Use Claude, OpenAI, or your own self-hosted model. Part of Oscilyx Pro."),
+          : "Ask in plain English and get answers from an AI model that queries your traces, logs, metrics, alerts and SLOs for you. Use Claude, OpenAI, or your own self-hosted model. Part of NebuLens Pro."),
       el("div", { class: "bs pro-actions" },
         el("button", { class: "btn sm primary", on: { click: getPro } }, "Get Pro →"),
         el("span", { class: "muted" }, "The rule-based analysis is always free."))); };
@@ -115,8 +115,8 @@
       ? ["What is failing right now?", top ? `Why are errors elevated on ${top}?` : "Summarize the last hour", "Which traces are slowest and why?", "Any suspicious error log patterns?", "Give me a health overview"]
       : ["What is failing right now?", "Which services are slow?", "Show top error logs", "Any resource saturation?", "Give me an overview"];
     const intro = isLLM()
-      ? `I'm the Oscilyx assistant, running on ${aiName()}. I query your traces, logs, metrics, alerts and SLOs (read-only) to answer. Try:`
-      : "I analyse the traces, logs, metrics, alerts and SLOs stored in Oscilyx using built-in rules — no data leaves your cluster. Try:";
+      ? `I'm the NebuLens assistant, running on ${aiName()}. I query your traces, logs, metrics, alerts and SLOs (read-only) to answer. Try:`
+      : "I analyse the traces, logs, metrics, alerts and SLOs stored in NebuLens using built-in rules — no data leaves your cluster. Try:";
     chat.body.replaceChildren(...(isFree() ? [proCard()] : []), el("div", { class: "bubble" }, el("div", { class: "bs" }, intro), el("div", { class: "bs" }, suggs(list))));
   }
 
@@ -150,7 +150,7 @@
     const h = { "Content-Type": "application/json" }, tok = store.get("token", "");
     if (tok) h.Authorization = "Bearer " + tok;
     const r = await fetch("/api/assistant", { method: "POST", headers: h, signal, body: JSON.stringify({ messages: history, stream: true }) });
-    if (r.status === 401) throw new P.AuthError("This Oscilyx requires an API token (Settings).");
+    if (r.status === 401) throw new P.AuthError("This NebuLens requires an API token (Settings).");
     if (!r.ok) {
       let j = {}; try { j = await r.json(); } catch { /* keep */ }
       const e = new Error(j.message || (j.details && j.details.map(d => d.msg).join("; ")) || r.statusText); e.fallback = r.status === 503 || r.status === 502;
@@ -233,7 +233,7 @@
 
   // ------------------------------------------------------------ drawer
   function build() {
-    chat.input = el("textarea", { rows: 1, placeholder: "Ask about your services, traces, logs…", autocomplete: "off", "aria-label": "Ask Oscilyx" });
+    chat.input = el("textarea", { rows: 1, placeholder: "Ask about your services, traces, logs…", autocomplete: "off", "aria-label": "Ask NebuLens" });
     chat.send = el("button", { class: "btn primary", on: { click: () => ask() } }, "Ask");
     chat.stop = el("button", { class: "btn danger", hidden: true, on: { click: () => chat.abort?.abort() } }, el("span", { class: "sq" }), "Stop");
     chat.body = el("div", { class: "ask-body" });
@@ -242,7 +242,7 @@
     chat.input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
     chat.input.addEventListener("input", () => { chat.input.style.height = "auto"; chat.input.style.height = Math.min(120, chat.input.scrollHeight) + "px"; });
     const clear = el("button", { class: "btn icon ghost", title: "Clear chat", "aria-label": "Clear chat", on: { click: () => { chat.abort?.abort(); chat.history = []; chat.upsold = false; welcome(); } } }, icon("trash", 15));
-    const dh = el("div", { class: "dh" }, icon("sparkle", 18), el("h2", {}, "Ask Oscilyx"), chat.badge, el("span", { style: "flex:1" }), clear, el("button", { class: "btn icon ghost x", "aria-label": "Close", on: { click: P.closeDrawer } }, icon("x")));
+    const dh = el("div", { class: "dh" }, icon("sparkle", 18), el("h2", {}, "Ask NebuLens"), chat.badge, el("span", { style: "flex:1" }), clear, el("button", { class: "btn icon ghost x", "aria-label": "Close", on: { click: P.closeDrawer } }, icon("x")));
     chat.root = el("div", { class: "db" }, dh, chat.body, el("div", { class: "ask-in" }, chat.input, chat.send, chat.stop), chat.foot);
     welcome();
   }
@@ -252,7 +252,7 @@
     chat.badge.replaceChildren(badge(llm ? "llm" : "rules", llm ? P.aiStatus.model : ""), ...(llm ? [proTag()] : []));
     if (llm && isFree()) chat.foot.dataset.free = "1"; else delete chat.foot.dataset.free;
     chat.foot.replaceChildren(llm
-      ? `${aiName()} runs read-only queries on this Oscilyx instance. Verify important findings in the linked views.`
+      ? `${aiName()} runs read-only queries on this NebuLens instance. Verify important findings in the linked views.`
       : isFree()
         ? el("span", {}, "Rule-based analysis is free. Unlimited AI answers with Claude, OpenAI or your own model are part of Pro: ",
             el("a", { href: "#", on: { click: e => { e.preventDefault(); getPro(); } } }, "see Pro"), ".")
