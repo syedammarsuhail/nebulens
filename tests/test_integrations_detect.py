@@ -43,3 +43,18 @@ def test_list_reads_registries_once_not_raw_tables_per_integration(client, srv, 
     raw = [s for s in seen if any(f"FROM {t} " in s for t in ("spans", "logs", "metrics"))]
     # at most one small sample per raw table (only for integrations detected by arbitrary attributes)
     assert len(raw) <= 3, raw
+
+
+def test_map_nodes_from_registry_not_span_scan(client, ingest, srv, monkeypatch):
+    ingest.span("map-meta-svc", "map-ns", **{"telemetry.sdk.language": "java", "service.version": "3.1.4"})
+    seen = []
+    real = srv.qrows
+
+    def spy(sql, args=()):
+        seen.append(sql)
+        return real(sql, args)
+    monkeypatch.setattr(srv, "qrows", spy)
+    rows = client.get("/api/map/nodes?minutes=60", headers={"Authorization": "Bearer tok"}).json()
+    m = {r["service"]: r for r in rows}["map-meta-svc"]
+    assert m["language"] == "java" and m["namespace"] == "map-ns" and m["version"] == "3.1.4"
+    assert not [s for s in seen if "FROM spans" in s]      # the whole-window span scan took over a minute at scale

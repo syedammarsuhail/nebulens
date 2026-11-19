@@ -3059,24 +3059,23 @@ def service_map(minutes: float = 60):
 
 
 @app.get("/api/map/nodes")
+@ttl_cached
 def map_nodes(minutes: float = 60):
     """Per-service resource metadata for the service map (language badge, namespace, version).
-    Kept separate from /api/map so that endpoint's contract (a bare edge list) is unchanged."""
-    t0 = since_ns(minutes)
-    out = []
-    for r in q("SELECT service, MIN(res) res FROM spans WHERE start_ns>=? GROUP BY service", (t0,)):
-        try:
-            a = _jload(r["res"])
-        except ValueError:
-            a = {}
-        a = a.get("attributes", a) if isinstance(a, dict) else {}
-        out.append({"service": r["service"],
-                    "language": a.get("telemetry.sdk.language", ""),
-                    "namespace": a.get("k8s.namespace.name") or a.get("service.namespace") or "",
-                    "version": a.get("service.version", ""),
-                    "env": a.get("deployment.environment", ""),
-                    "runtime": a.get("process.runtime.name", "")})
-    return out
+    Kept separate from /api/map so that endpoint's contract (a bare edge list) is unchanged.
+    Read from resource_seen (one row per distinct resource, written at ingest). It used to GROUP BY service over every
+    span in the window comparing their resource JSON, which took over a minute with a few million spans and left the
+    map waiting."""
+    _res_flush()
+    out = {}
+    for service, lang, ns, ver, env in qrows(
+            "SELECT service, lang, ns, svc_version, env FROM resource_seen WHERE sig='spans' AND last_seen>=? ORDER BY last_seen",
+            (int(time.time() - minutes * 60),)):
+        cur = out.setdefault(service, {"service": service, "language": "", "namespace": "", "version": "", "env": "", "runtime": ""})
+        for k, v in (("language", lang), ("namespace", ns), ("version", ver), ("env", env)):
+            if v:
+                cur[k] = v          # rows come oldest first, so the newest non-empty value wins
+    return list(out.values())
 
 
 # ---- traces
