@@ -42,9 +42,9 @@ python server.py                     # UI and OTLP endpoint on http://localhost:
 On Kubernetes:
 
 ```bash
-docker build -t <your-registry>/nebulens:11.1 . && docker push <your-registry>/nebulens:11.1
+docker build -t <your-registry>/nebulens:11.2 . && docker push <your-registry>/nebulens:11.2
 helm install nebulens ./helm/nebulens -n observability --create-namespace \
-  --set image.repository=<your-registry>/nebulens --set-string image.tag=11.1 \
+  --set image.repository=<your-registry>/nebulens --set-string image.tag=11.2 \
   --set auth.token=$(openssl rand -hex 24)
 ```
 

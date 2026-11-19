@@ -32,8 +32,8 @@ This guide takes you from nothing to a working install with data. It takes about
 Download the newest `nebulens-onprem-v*.tar.gz` from the repository, then:
 
 ```bash
-tar -xzf nebulens-onprem-v11_1.tar.gz
-cd nebulens-v11_1
+tar -xzf nebulens-onprem-v11_2.tar.gz
+cd nebulens-v11_2
 ```
 
 Run every command below from this folder.
@@ -41,8 +41,8 @@ Run every command below from this folder.
 ## 3. Build the image
 
 ```bash
-docker build -t registry.example.com/nebulens:11.1 .
-docker push registry.example.com/nebulens:11.1        # skip if you run on this same machine
+docker build -t registry.example.com/nebulens:11.2 .
+docker push registry.example.com/nebulens:11.2        # skip if you run on this same machine
 ```
 
 No registry (air-gapped)? Save the image to a file and import it on each node: see [ON-PREM.md](ON-PREM.md) section 1.
@@ -63,14 +63,51 @@ Pick **one**.
 
 ### A. Kubernetes (recommended)
 
+**Bare metal, every app traced with no restarts (eBPF is on in `values-baremetal.yaml`):**
+
 ```bash
 TOKEN=<the token from step 4>
-helm install nebulens ./helm/nebulens -n observability --create-namespace \
+helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml \
   --set image.repository=registry.example.com/nebulens \
-  --set-string image.tag=11.1 \
-  --set auth.token=$TOKEN
-kubectl -n observability rollout status statefulset/nebulens
+  --set-string image.tag=11.2 --set image.pullPolicy=Always \
+  --set persistence.storageClass=local-path \
+  --set auth.token=$TOKEN \
+  --set collector.traceSamplingPercent=100 \
+  --set-string collector.clusterName=baremetal \
+  --wait --timeout 10m
+```
+
+Your applications are not restarted or changed: one eBPF agent per node traces them from the kernel. Needs Linux 5.8+ on
+every node (`uname -r`; `ls /sys/kernel/btf/vmlinux` must exist). Turn it off with `--set ebpf.enabled=false`.
+
+**Bare metal, everything on (eBPF + OpenTelemetry Operator + automatic agent injection):** same command plus
+`values-full.yaml` and your application namespaces. Each workload in those namespaces restarts once to get the language
+agent (here 10 every 5 minutes); everything else stays on eBPF with no restart.
+
+```bash
+helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
+  -f helm/nebulens/values-baremetal.yaml -f helm/nebulens/values-full.yaml \
+  --set image.repository=registry.example.com/nebulens \
+  --set-string image.tag=11.2 --set image.pullPolicy=Always \
+  --set persistence.storageClass=local-path \
+  --set auth.token=$TOKEN \
+  --set-string collector.clusterName=baremetal \
+  --set "autoInstrumentation.autoInject.namespaces={shop,payments}" \
+  --set autoInstrumentation.autoInject.maxChangesPerRun=10 \
+  --set-string autoInstrumentation.autoInject.schedule="*/5 * * * *" \
+  --wait --timeout 10m
+```
+
+Leave out the Operator (`--set opentelemetry-operator.enabled=false`) if the cluster already runs one. Apps whose language
+cannot be read from the Deployment are skipped (still traced by eBPF); label them `nebulens.io/language=java` (or `dotnet`,
+`python`, `nodejs`, `go`).
+
+Check it:
+
+```bash
+kubectl -n observability get pods -o wide        # nebulens-0, collectors, one nebulens-ebpf per node
+kubectl -n observability logs -l app.kubernetes.io/component=ebpf --tail=-1 | grep -o "type=[a-z]* service=[^ ]*" | sort -u
 ```
 
 - Use `values-eks.yaml`, `values-aks.yaml` or `values-openshift.yaml` instead of `values-baremetal.yaml` on those platforms.
@@ -88,7 +125,7 @@ kubectl -n observability port-forward svc/nebulens 4318:4318      # then http://
 
 ```bash
 cd deploy/vm
-cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.1
+cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.2
 docker compose up -d
 docker compose ps           # both services should be running / healthy
 ```
@@ -144,7 +181,7 @@ and cluster metrics, and the **Kubernetes** page fills, without changing any app
   ```bash
   helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
     -f ./helm/nebulens/values-baremetal.yaml -f ./helm/nebulens/values-full.yaml \
-    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.1 \
+    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.2 \
     --set persistence.storageClass=local-path \
     --set auth.token=$(openssl rand -hex 24) \
     --set "autoInstrumentation.autoInject.namespaces={shop,payments}" \
