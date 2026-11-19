@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>NebuLens</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="NebuLens: self-hosted, OpenTelemetry-native observability. Traces, logs and metrics from every service, on your own infrastructure.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one dark "observatory" column; the hero is a lens looking at a live service table; sections alternate
+   between open text and a single framed instrument (install, pipeline, measurements, pricing). */
+:root{
+  color-scheme:dark;
+  --bg:#0a0b14; --bg-2:#0f1120; --panel:#141729; --panel-2:#1a1e34; --line:#262a44; --line-2:#343a5c;
+  --text:#e8e9f5; --muted:#a3a7c4; --dim:#71759a;
+  --accent:#8b7cf6; --accent-2:#bcb2fd; --accent-ink:#ffffff; --glow:rgba(139,124,246,.32);
+  --ok:#3ec98e; --warn:#e9ab3e; --err:#f2656f; --sky:#5aa9f5;
+  --display:"Sora","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+  --r:14px; --max:1160px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+body{background:var(--bg);color:var(--text);font:16px/1.6 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent-2);outline-offset:3px;border-radius:6px}
+.wrap{max-width:var(--max);margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.02em}
+p{margin:0}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent-2)}
+.muted{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 20px;border-radius:999px;font:600 15px var(--body);text-decoration:none;border:1px solid var(--line-2);color:var(--text);background:transparent;cursor:pointer;transition:border-color .2s,background .2s,transform .2s}
+.btn:hover{border-color:var(--accent);transform:translateY(-1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:0 8px 30px var(--glow)}
+.btn.primary:hover{background:#9a8cf8}
+.btn svg{width:18px;height:18px}
+
+/* announcement + nav */
+.notice{background:var(--bg-2);border-bottom:1px solid var(--line);font-size:14px}
+.notice .wrap{display:flex;justify-content:center;gap:10px;padding-block:9px;flex-wrap:wrap;text-align:center}
+.notice b{color:var(--accent-2);font-weight:600}
+.notice a{color:var(--accent-2);text-underline-offset:3px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+nav.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(10,11,20,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav.top .wrap{display:flex;align-items:center;gap:28px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:700 19px var(--display);letter-spacing:-.01em}
+.mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#8b5cf6,#3d6df2);display:grid;place-items:center;box-shadow:0 0 14px var(--glow);flex:none}
+.mark svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}
+.mark .core{fill:#fff;stroke:none}.mark .glint{stroke-width:1.6;opacity:.85}
+.links{display:flex;gap:24px;font-size:15px;color:var(--muted)}
+.links a{text-decoration:none}.links a:hover{color:var(--text)}
+nav.top .btn{height:38px;padding:0 16px;font-size:14px;margin-left:auto}
+@media (max-width:820px){.links{display:none}}
+
+/* hero */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+#sky{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(600px 380px at 78% 42%,rgba(139,124,246,.20),transparent 70%),radial-gradient(500px 300px at 12% 10%,rgba(61,109,242,.12),transparent 70%)}
+.hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;padding-block:88px 96px}
+.hero h1{font-size:clamp(40px,6vw,68px);line-height:1.04;font-weight:700;margin-top:18px}
+.hero h1 em{font-style:normal;color:var(--accent-2)}
+.hero .lede{font-size:19px;color:var(--muted);margin-top:22px;max-width:34em}
+.hero .cta{display:flex;gap:12px;margin-top:34px;flex-wrap:wrap}
+.facts{display:flex;gap:22px;margin-top:34px;flex-wrap:wrap;font:500 13px var(--mono);color:var(--dim)}
+.facts span{display:flex;align-items:center;gap:8px}
+.facts span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok)}
+@media (max-width:920px){.hero .wrap{grid-template-columns:1fr;padding-block:56px 64px}}
+
+/* lens + product mock */
+.lens{position:relative;min-width:0}
+.ring{position:absolute;inset:-60px -40px;border-radius:50%;border:1px solid rgba(188,178,253,.16);pointer-events:none}
+.ring.r2{inset:-20px 0;border-color:rgba(188,178,253,.10)}
+.app{position:relative;background:var(--panel);border:1px solid var(--line-2);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(139,124,246,.08);overflow:hidden}
+.app-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--bg-2)}
+.app-bar .mark{width:22px;height:22px;border-radius:7px}.app-bar .mark svg{width:16px;height:16px}
+.app-bar b{font:600 14px var(--display)}
+.app-bar .live{margin-left:auto;font:500 11px var(--mono);color:var(--ok);display:flex;align-items:center;gap:6px}
+.app-bar .live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.app-head{display:flex;justify-content:space-between;align-items:baseline;padding:16px 18px 6px;gap:8px;flex-wrap:wrap}
+.app-head h3{font-size:17px}
+.app-head small{font:11px var(--mono);color:var(--dim)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.tbl th{font:500 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:right;padding:8px 18px;border-bottom:1px solid var(--line)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl td{padding:10px 18px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:0}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:2px 9px;border-radius:999px;background:rgba(62,201,142,.12);color:var(--ok)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.warn{background:rgba(233,171,62,.13);color:var(--warn)}
+.pill.err{background:rgba(242,101,111,.13);color:var(--err)}
+.spark{width:72px;height:22px;display:block;margin-left:auto}
+.spark path{fill:none;stroke-width:1.6}
+.tbl-scroll{overflow-x:auto}
+@media (max-width:520px){.tbl .opt{display:none}}
+
+/* install strip */
+.install{padding-block:28px;border-bottom:1px solid var(--line);background:var(--bg-2)}
+.install .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.install .label{font:500 13px var(--mono);color:var(--dim)}
+.cmd{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--line-2);border-radius:12px;padding:10px 10px 10px 16px}
+.cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;font:14px var(--mono);color:var(--accent-2)}
+.cmd code::before{content:"$ ";color:var(--dim)}
+.copy{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--line-2);background:var(--panel);color:var(--text);font:500 13px var(--body);cursor:pointer;flex:none}
+.copy:hover{border-color:var(--accent)}
+
+/* sections */
+section{padding-block:104px;border-bottom:1px solid var(--line)}
+.sec-head{max-width:760px;display:grid;gap:16px;margin-bottom:52px}
+.sec-head h2{font-size:clamp(30px,4vw,46px);line-height:1.1}
+.sec-head p{font-size:18px;color:var(--muted)}
+
+/* the problem */
+.problems{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.problem{padding:28px;border-radius:var(--r);background:var(--panel);border:1px solid var(--line);display:grid;gap:12px;align-content:start}
+.problem .tag{font:500 11.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--err)}
+.problem h3{font-size:21px;line-height:1.25}
+.problem p{color:var(--muted);font-size:15.5px}
+.problem .fix{margin-top:6px;padding-top:14px;border-top:1px dashed var(--line-2);font-size:15px;color:var(--text)}
+.problem .fix b{color:var(--ok);font-weight:600}
+@media (max-width:900px){.problems{grid-template-columns:1fr}}
+
+/* features */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.feature{background:var(--bg);padding:28px;display:grid;gap:10px;align-content:start;min-width:0}
+.feature .ico{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:rgba(139,124,246,.12);color:var(--accent-2)}
+.feature .ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.feature h3{font-size:18px}
+.feature p{color:var(--muted);font-size:15px}
+.feature.wide{grid-column:span 2;background:linear-gradient(135deg,rgba(139,124,246,.10),transparent 60%),var(--bg)}
+.ask{margin-top:8px;display:grid;gap:8px;font-size:14px}
+.ask .q{justify-self:end;background:var(--accent);color:var(--accent-ink);padding:8px 13px;border-radius:12px 12px 2px 12px;max-width:85%}
+.ask .a{background:var(--panel-2);border:1px solid var(--line);padding:10px 13px;border-radius:12px 12px 12px 2px;color:var(--muted);max-width:92%}
+.ask .a b{color:var(--text);font-weight:600}
+@media (max-width:900px){.features{grid-template-columns:1fr 1fr}.feature.wide{grid-column:span 2}}
+@media (max-width:600px){.features{grid-template-columns:1fr}.feature.wide{grid-column:auto}}
+
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}
+.stage{padding:24px;border:1px solid var(--line);background:var(--panel);display:grid;gap:8px;align-content:start;position:relative;min-width:0}
+.stage:first-child{border-radius:var(--r) 0 0 var(--r)}.stage:last-child{border-radius:0 var(--r) var(--r) 0}
+.stage+.stage{border-left:0}
+.stage .n{font:500 12px var(--mono);color:var(--accent-2)}
+.stage h3{font-size:18px}
+.stage p{color:var(--muted);font-size:14.5px}
+.stage code{font:12.5px var(--mono);color:var(--accent-2);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;overflow-wrap:anywhere}
+.stage.core{background:linear-gradient(180deg,rgba(139,124,246,.16),rgba(139,124,246,.04)),var(--panel);border-color:rgba(139,124,246,.45)}
+.langs{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.langs span{font:12px var(--mono);padding:3px 8px;border-radius:6px;border:1px solid var(--line-2);color:var(--muted)}
+@media (max-width:900px){.pipe{grid-template-columns:1fr 1fr}.stage{border-radius:0!important;border-left:1px solid var(--line)!important}.stage:nth-child(n+3){border-top:0}}
+@media (max-width:560px){.pipe{grid-template-columns:1fr}.stage+.stage{border-top:0}}
+
+/* measurements */
+.bench{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:28px;display:grid;gap:4px}
+.bench-row{display:grid;grid-template-columns:180px 1fr 150px;gap:18px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.bench-row:last-of-type{border-bottom:0}
+.bench-row .name{font-weight:600}
+.bar{height:10px;border-radius:6px;background:var(--bg);border:1px solid var(--line);position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:6px;background:linear-gradient(90deg,var(--accent),var(--sky))}
+.bench-row .t{font:500 14px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.bench-row .t s{color:var(--dim);text-decoration-color:var(--err);margin-right:8px}
+.bench-row .t b{color:var(--ok);font-weight:500}
+.bench .note{margin-top:14px;font:12.5px var(--mono);color:var(--dim)}
+@media (max-width:640px){.bench-row{grid-template-columns:1fr auto}.bench-row .bar{grid-column:1/-1;order:3}}
+
+/* trust */
+.trust{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.checks{display:grid;gap:14px;list-style:none;margin:0;padding:0}
+.checks li{display:grid;grid-template-columns:28px 1fr;gap:12px;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.checks li svg{width:22px;height:22px;fill:none;stroke:var(--ok);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-top:2px}
+.checks b{display:block;font-weight:600}
+.checks span{color:var(--muted);font-size:15px}
+.gate{font:13px/1.9 var(--mono);background:var(--bg-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;overflow-x:auto;white-space:pre;color:var(--muted)}
+.gate .ok{color:var(--ok)}.gate .h{color:var(--accent-2)}
+@media (max-width:900px){.trust{grid-template-columns:1fr}}
+
+/* pricing */
+.plans{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:920px}
+.plan{border:1px solid var(--line);border-radius:18px;padding:32px;background:var(--panel);display:grid;gap:18px;align-content:start}
+.plan.pro{border-color:rgba(139,124,246,.55);background:linear-gradient(160deg,rgba(139,124,246,.14),transparent 55%),var(--panel);box-shadow:0 20px 60px rgba(139,124,246,.12)}
+.plan h3{font-size:22px;display:flex;align-items:center;gap:10px}
+.plan .badge{font:600 11px var(--mono);letter-spacing:.06em;padding:3px 9px;border-radius:999px;background:var(--accent);color:var(--accent-ink)}
+.price{font:700 40px var(--display);letter-spacing:-.02em}
+.price small{font:400 15px var(--body);color:var(--muted);margin-left:6px}
+.plan ul{list-style:none;margin:0;padding:0;display:grid;gap:10px;font-size:15px}
+.plan li{display:grid;grid-template-columns:20px 1fr;gap:10px;color:var(--muted)}
+.plan li::before{content:"";width:8px;height:8px;margin-top:8px;border-radius:50%;background:var(--accent-2)}
+.plan li b{color:var(--text);font-weight:600}
+.plan .btn{justify-self:start}
+@media (max-width:760px){.plans{grid-template-columns:1fr}}
+
+/* closing */
+.closing{text-align:center;position:relative;overflow:hidden}
+.closing .wrap{position:relative;display:grid;gap:22px;justify-items:center}
+.closing::before{content:"";position:absolute;left:50%;top:50%;width:620px;height:620px;max-width:140vw;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(188,178,253,.14);box-shadow:inset 0 0 120px rgba(139,124,246,.12)}
+.closing h2{font-size:clamp(32px,5vw,54px);line-height:1.08}
+.closing .cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+footer{padding-block:40px;color:var(--dim);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+footer a{text-decoration:none}footer a:hover{color:var(--text)}
+footer .fl{display:flex;gap:22px;flex-wrap:wrap}
+</style>
+
+<div class="notice"><div class="wrap"><span><b>v11.1</b> Pulse0 is now NebuLens. Existing installs upgrade in place.</span><a href="https://github.com/syedammarsuhail/nebulens/blob/main/UPGRADE.md">Upgrade notes →</a></div></div>
+
+<nav class="top" aria-label="Main">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="NebuLens home">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>NebuLens
+    </a>
+    <div class="links"><a href="#platform">Platform</a><a href="#how">How it works</a><a href="#performance">Performance</a><a href="#pricing">Pricing</a><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Docs</a></div>
+    <a class="btn" href="https://github.com/syedammarsuhail/nebulens"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/></svg>GitHub</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <canvas id="sky" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Self-hosted · OpenTelemetry-native</span>
+      <h1>A clear lens on <em>everything running in production.</em></h1>
+      <p class="lede">NebuLens collects traces, logs and metrics from every service and shows you what is slow, what is failing and why. It runs on your own servers, so your data never leaves and your bill doesn't grow with every deploy.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install in 20 minutes
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn" href="#platform">See the platform</a>
+      </div>
+      <div class="facts"><span>One OTLP endpoint, :4318</span><span>Kubernetes or a single VM</span><span>SQLite or Postgres</span></div>
+    </div>
+
+    <div class="lens">
+      <div class="ring" aria-hidden="true"></div><div class="ring r2" aria-hidden="true"></div>
+      <div class="app" role="img" aria-label="NebuLens services view with example data: six services with health scores, request rates, error rates and p95 latency">
+        <div class="app-bar">
+          <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>
+          <b>Services</b><span class="live">LIVE · last 1 h</span>
+        </div>
+        <div class="app-head"><h3>23 services with traces</h3><small>example data</small></div>
+        <div class="tbl-scroll">
+        <table class="tbl">
+          <thead><tr><th>Service</th><th>Health</th><th class="opt">Req/s</th><th>Errors</th><th class="opt">p95</th><th>Trend</th></tr></thead>
+          <tbody id="svc"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="install" id="install">
+  <div class="wrap">
+    <span class="label">Kubernetes, one command</span>
+    <div class="cmd"><code id="cmd">helm install nebulens ./helm/nebulens -n observability --create-namespace --set auth.token=$(openssl rand -hex 24)</code><button class="copy" id="copy" type="button">Copy</button></div>
+  </div>
+</div>
+
+<section id="why">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Why teams switch</span>
+      <h2>Observability got expensive, scattered and hard to trust.</h2>
+      <p>Most teams pay for several tools, send their data to someone else's cloud, and still can't answer "what broke?" quickly.</p>
+    </div>
+    <div class="problems">
+      <article class="problem">
+        <span class="tag">Cost</span>
+        <h3>Bills that grow with every deploy.</h3>
+        <p>Per-host, per-GB and per-user pricing punishes you for adding services, logging more or inviting your team.</p>
+        <p class="fix"><b>NebuLens:</b> runs on hardware you already have. No per-host, per-GB or per-seat fees.</p>
+      </article>
+      <article class="problem">
+        <span class="tag">Control</span>
+        <h3>Your data lives in someone else's cloud.</h3>
+        <p>Request payloads, user IDs and internal hostnames end up with a vendor. That is a hard conversation with security and compliance.</p>
+        <p class="fix"><b>NebuLens:</b> every span, log and metric stays in your cluster, in a database you own.</p>
+      </article>
+      <article class="problem">
+        <span class="tag">Context</span>
+        <h3>Three tools for one incident.</h3>
+        <p>Traces in one place, logs in another, metrics in a third. Engineers copy IDs between tabs while users wait.</p>
+        <p class="fix"><b>NebuLens:</b> one UI where a slow request links to its logs, its service and the pod it ran on.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="platform">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">The platform</span>
+      <h2>Everything you need to run production, in one place.</h2>
+      <p>Services, dependencies, requests, logs and infrastructure, connected by the same OpenTelemetry data.</p>
+    </div>
+    <div class="features">
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span><h3>Services and health</h3><p>Request rate, errors and latency for every service, with a health score that tells you where to look first.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M7.3 11l9.3-4.8M7.3 13l9.3 4.8"/></svg></span><h3>Service map</h3><p>See how traffic flows between services and where errors and slowness spread.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 6h10M6 12h12M9 18h9"/></svg></span><h3>Traces</h3><p>Follow one request through every service, find the slow span, and jump straight to its logs.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h12"/></svg></span><h3>Logs</h3><p>Search and filter every log line, grouped by service, environment and severity.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 8-9"/></svg></span><h3>Metrics and dashboards</h3><p>Explore any metric, group it by pod, node or container, and build dashboards your team shares.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z"/><path d="M12 22V12M20.5 7L12 12 3.5 7"/></svg></span><h3>Kubernetes</h3><p>Clusters, nodes, workloads and pods with CPU and memory, collected by an agent the chart installs for you.</p></div>
+      <div class="feature wide">
+        <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></span>
+        <h3>Ask NebuLens</h3>
+        <p>An AI assistant that reads your live telemetry and explains what changed. Works with Claude, OpenAI or any OpenAI-compatible model, and falls back to built-in analysis when no key is set.</p>
+        <div class="ask" aria-label="Example conversation">
+          <div class="q">Why is checkout slow since 14:20?</div>
+          <div class="a"><b>payment-service p95 rose from 180 ms to 1.4 s</b> at 14:19, right after a deploy. 92% of the extra time is in calls to <b>postgres</b>, and its error logs show connection-pool timeouts. <span class="muted">(example answer)</span></div>
+        </div>
+      </div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span><h3>Alerts, SLOs and Live Insights</h3><p>Alerts from a template library, error budgets, and anomalies NebuLens finds on its own.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg></span><h3>Synthetics and browser monitoring</h3><p>Check your endpoints from inside your network, and see real users' page loads and JavaScript errors with a 5 KB script.</p></div>
+      <div class="feature"><span class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><h3>SSO, roles and audit</h3><p>Sign in with your identity provider (OIDC), give people viewer, editor or admin roles, and keep an audit log of changes.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">How it works</span>
+      <h2>Built on OpenTelemetry. No proprietary agents.</h2>
+      <p>Instrument once with the open standard. If you ever move, your instrumentation moves with you.</p>
+    </div>
+    <div class="pipe">
+      <div class="stage"><span class="n">01 · instrument</span><h3>Your services</h3><p>Use any OpenTelemetry SDK, or switch on auto-instrumentation per workload in Kubernetes.</p><div class="langs"><span>Java</span><span>.NET</span><span>Python</span><span>Node.js</span><span>Go</span><span>Browser</span></div></div>
+      <div class="stage"><span class="n">02 · collect</span><h3>OTel Collector</h3><p>The Helm chart deploys collectors for host, kubelet and cluster metrics and container logs.</p></div>
+      <div class="stage core"><span class="n">03 · analyse</span><h3>NebuLens</h3><p>One OTLP endpoint receives everything: <code>http://nebulens:4318</code>. Summaries are pre-computed every minute, so pages stay fast.</p></div>
+      <div class="stage"><span class="n">04 · store</span><h3>Your database</h3><p>SQLite on a local disk for a single node, or your own Postgres. Retention is yours to set.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="performance">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Measured, not promised</span>
+      <h2>Fast at millions of spans.</h2>
+      <p>Page load times before and after the rollup work in v10.11–v10.16, measured on AWS EKS with 3.1 million spans stored.</p>
+    </div>
+    <div class="bench" id="bench" role="table" aria-label="Page load times before and after">
+      <div class="bench-row" role="row"><span class="name" role="cell">Services</span><div class="bar" role="cell"><i style="width:0.3%"></i></div><span class="t" role="cell"><s>36.5 s</s><b>0.1 s</b></span></div>
+      <div class="bench-row" role="row"><span class="name" role="cell">Environments</span><div class="bar" role="cell"><i style="width:0.03%"></i></div><span class="t" role="cell"><s>27.9 s</s><b>9 ms</b></span></div>
+      <div class="bench-row" role="row"><span class="name" role="cell">Service map</span><div class="bar" role="cell"><i style="width:0.9%"></i></div><span class="t" role="cell"><s>9.9 s</s><b>90 ms</b></span></div>
+      <div class="bench-row" role="row"><span class="name" role="cell">Traces</span><div class="bar" role="cell"><i style="width:0.24%"></i></div><span class="t" role="cell"><s>8 s</s><b>19 ms</b></span></div>
+      <div class="bench-row" role="row"><span class="name" role="cell">Kubernetes</span><div class="bar" role="cell"><i style="width:0.38%"></i></div><span class="t" role="cell"><s>5 s</s><b>19 ms</b></span></div>
+      <p class="note">Bar = new load time as a share of the old one. Lower is better.</p>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap trust">
+    <div class="sec-head" style="margin-bottom:0">
+      <span class="eyebrow">Security and ownership</span>
+      <h2>Your telemetry. Your servers. Your rules.</h2>
+      <p>NebuLens runs inside your network. Nothing is sent to us, and every release is scanned before it ships.</p>
+      <ul class="checks">
+        <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Data never leaves your network</b><span>Runs on your Kubernetes cluster or a VM, including air-gapped sites.</span></div></li>
+        <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Access you control</b><span>Tokens for ingest and API, OIDC single sign-on, viewer, editor and admin roles, and an audit log.</span></div></li>
+        <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Scanned on every release</b><span>Tests, dependency audit, static analysis, secret scanning, Snyk and SonarCloud must all pass before an image is published.</span></div></li>
+      </ul>
+    </div>
+    <pre class="gate" aria-label="Output of the release check for v11.1"><span class="h">$ bash scripts/release-check.sh</span>
+=== 1/7 tests ===         <span class="ok">210 passed</span>
+=== 2/7 dependencies ===  <span class="ok">No known vulnerabilities found</span>
+=== 3/7 code scan ===     <span class="ok">0 high severity</span>
+=== 4/7 secrets ===       <span class="ok">no secrets found</span>
+=== 5/7 paid code ===     <span class="ok">none present</span>
+=== 6/7 helm ===          <span class="ok">every overlay renders</span>
+=== 7/7 ui ===            <span class="ok">all UI scripts parse</span>
+
+<span class="ok">RELEASE CHECK PASSED</span></pre>
+  </div>
+</section>
+
+<section id="pricing">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Pricing</span>
+      <h2>Start free. Upgrade when you outgrow it.</h2>
+      <p>No usage-based billing. Community is free forever; Pro removes every limit. New installs get a 14-day Pro trial.</p>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <h3>Community</h3>
+        <div class="price">Free<small>self-hosted</small></div>
+        <ul>
+          <li><span><b>The full platform:</b> traces, logs, metrics, service map, Kubernetes</span></li>
+          <li><span>Up to <b>10 services</b>, <b>10 dashboards</b> and <b>10 alerts</b></span></li>
+          <li><span><b>3 SLOs</b> and <b>3 synthetic checks</b></span></li>
+          <li><span><b>7 days</b> of retention</span></li>
+          <li><span><b>20 AI answers</b> a day</span></li>
+        </ul>
+        <a class="btn" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install Community</a>
+      </div>
+      <div class="plan pro">
+        <h3>Pro <span class="badge">14-DAY TRIAL</span></h3>
+        <div class="price">Flat license<small>per installation</small></div>
+        <ul>
+          <li><span><b>Unlimited</b> services, dashboards, alerts, SLOs and synthetic checks</span></li>
+          <li><span><b>Retention you choose</b></span></li>
+          <li><span><b>Unlimited AI answers</b> with your own model and key</span></li>
+          <li><span>Activated with a license key, with <b>no data sent to us</b></span></li>
+        </ul>
+        <a class="btn primary" href="https://github.com/syedammarsuhail/nebulens">Talk to us about Pro</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap">
+    <span class="eyebrow">Get started</span>
+    <h2>See production clearly, in about 20 minutes.</h2>
+    <p class="muted" style="max-width:38em;font-size:18px">Install with Helm or Docker Compose, point your OpenTelemetry SDKs at it, and watch your services appear.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Read the install guide</a>
+      <a class="btn" href="https://github.com/syedammarsuhail/nebulens">Star on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="NebuLens home"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>NebuLens</a>
+    <div class="fl">
+      <a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Getting started</a>
+      <a href="https://github.com/syedammarsuhail/nebulens/blob/main/ON-PREM.md">Install options</a>
+      <a href="https://github.com/syedammarsuhail/nebulens/blob/main/UPGRADE.md">Upgrade notes</a>
+      <a href="https://github.com/syedammarsuhail/nebulens/blob/main/LICENSE">License (BSL 1.1)</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Example rows for the hero's services table (clearly labelled "example data" in the UI).
+  var rows = [
+    ["api-gateway", 100, "ok", "12.4", "0.4%", "67 ms", [6,7,6,8,7,9,8,9,10,9]],
+    ["checkout", 96, "ok", "6.1", "0.9%", "142 ms", [5,6,6,5,7,6,7,8,7,8]],
+    ["payment-service", 71, "warn", "3.8", "2.6%", "1.4 s", [3,3,4,3,4,6,9,12,11,13]],
+    ["recommendations", 100, "ok", "5.2", "0.3%", "58 ms", [7,6,7,7,6,7,8,7,7,8]],
+    ["email-worker", 42, "err", "0.9", "11.2%", "310 ms", [2,2,3,2,6,9,8,10,12,11]],
+    ["postgres", 100, "ok", "21.7", "0.2%", "11 ms", [8,9,8,9,9,10,9,10,10,11]]
+  ];
+  var colors = { ok: "var(--ok)", warn: "var(--warn)", err: "var(--err)" };
+  var labels = { ok: "healthy", warn: "degraded", err: "critical" };
+  var tb = document.getElementById("svc");
+  rows.forEach(function (r) {
+    var max = Math.max.apply(null, r[6]), min = Math.min.apply(null, r[6]);
+    var pts = r[6].map(function (v, i) { return (i * 72 / 9).toFixed(1) + "," + (19 - (v - min) / ((max - min) || 1) * 16).toFixed(1); });
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + r[0] + "</td><td><span class='pill " + (r[2] === "ok" ? "" : r[2]) + "'>" + r[1] + " · " + labels[r[2]] + "</span></td>" +
+      "<td class='opt'>" + r[3] + "</td><td style='color:" + (r[2] === "ok" ? "var(--muted)" : colors[r[2]]) + "'>" + r[4] + "</td>" +
+      "<td class='opt'>" + r[5] + "</td><td><svg class='spark' viewBox='0 0 72 22' aria-hidden='true'><path stroke='" + colors[r[2]] + "' d='M" + pts.join(" L") + "'/></svg></td>";
+    tb.appendChild(tr);
+  });
+
+  // Copy the install command.
+  var btn = document.getElementById("copy"), code = document.getElementById("cmd");
+  btn.addEventListener("click", function () {
+    var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1600); };
+    var select = function () { var r = document.createRange(); r.selectNodeContents(code); var s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Press Ctrl+C"; };
+    try { navigator.clipboard.writeText(code.textContent).then(done, select); } catch (e) { select(); }
+  });
+
+  // A quiet star field behind the hero; it twinkles only when motion is allowed.
+  var cv = document.getElementById("sky"), ctx = cv.getContext("2d"), stars = [], still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function size() {
+    var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0);
+    stars = [];
+    var n = Math.round(r.width * r.height / 5200);
+    for (var i = 0; i < n; i++) stars.push({ x: Math.random() * r.width, y: Math.random() * r.height, r: Math.random() * 1.1 + .2, a: Math.random() * .6 + .15, p: Math.random() * 6.28 });
+    draw(0);
+  }
+  function draw(t) {
+    var r = cv.getBoundingClientRect();
+    ctx.clearRect(0, 0, r.width, r.height);
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i], a = still ? s.a : s.a * (.65 + .35 * Math.sin(t / 1400 + s.p));
+      ctx.globalAlpha = a; ctx.fillStyle = i % 7 ? "#dcd8ff" : "#9fc3ff";
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  size();
+  addEventListener("resize", size);
+  if (!still) (function loop(t) { draw(t); requestAnimationFrame(loop); })(0);
+})();
+</script>
+
+</body>
+</html>

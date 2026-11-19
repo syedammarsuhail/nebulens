@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>NebuLens Product Tour</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the product is the page. A short headline, then one large app window driven by a step list that follows
+   a real incident from "something is red" to "here is the line that failed". */
+:root{
+  --bg:#f4f4f9; --surface:#ffffff; --surface-2:#f7f7fb; --line:#e1e2ee; --line-2:#cdd0e0;
+  --text:#15162c; --text-2:#4b4e6a; --text-3:#767a96;
+  --accent:#5b4bd6; --accent-soft:rgba(91,75,214,.09); --accent-ink:#ffffff;
+  --ok:#14804f; --ok-soft:rgba(20,128,79,.10); --warn:#a8620a; --warn-soft:rgba(168,98,10,.11); --err:#c42b37; --err-soft:rgba(196,43,55,.09); --sky:#1f6fc4;
+  --app-bg:#f5f5fa; --app-panel:#ffffff;
+  --display:"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif; --body:"Inter","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a0b14; --surface:#11131f; --surface-2:#161927; --line:#252940; --line-2:#333854;
+  --text:#e8e9f5; --text-2:#a7abc6; --text-3:#757a99; --accent:#8b7cf6; --accent-soft:rgba(139,124,246,.14); --accent-ink:#ffffff;
+  --ok:#3ec98e; --ok-soft:rgba(62,201,142,.12); --warn:#e9ab3e; --warn-soft:rgba(233,171,62,.13); --err:#f2656f; --err-soft:rgba(242,101,111,.13); --sky:#5aa9f5;
+  --app-bg:#0b0d16; --app-panel:#11141f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a0b14; --surface:#11131f; --surface-2:#161927; --line:#252940; --line-2:#333854;
+  --text:#e8e9f5; --text-2:#a7abc6; --text-3:#757a99; --accent:#8b7cf6; --accent-soft:rgba(139,124,246,.14); --accent-ink:#ffffff;
+  --ok:#3ec98e; --ok-soft:rgba(62,201,142,.12); --warn:#e9ab3e; --warn-soft:rgba(233,171,62,.13); --err:#f2656f; --err-soft:rgba(242,101,111,.13); --sky:#5aa9f5;
+  --app-bg:#0b0d16; --app-panel:#11141f; color-scheme:dark}
+*{box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+body{background:var(--bg);color:var(--text);font:16px/1.6 var(--body);overflow-x:hidden}
+a{color:inherit}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+.mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#3d6df2);display:grid;place-items:center;flex:none}
+.mark svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}.mark .core{fill:#fff;stroke:none}.mark .glint{stroke-width:1.6;opacity:.85}
+.btn{display:inline-flex;align-items:center;height:44px;padding:0 20px;border-radius:999px;font:700 15px var(--display);text-decoration:none;border:1px solid var(--line-2);background:var(--surface)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+nav .wrap{display:flex;align-items:center;gap:12px;height:68px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 18px var(--display)}
+nav .btn{margin-left:auto;height:38px;font-size:14px}
+
+.intro{padding-block:40px 36px;text-align:center}
+.intro .eyebrow{font:500 12.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.intro h1{font-size:clamp(34px,5vw,58px);line-height:1.08;margin:14px auto 0;max-width:15em}
+.intro p{color:var(--text-2);font-size:18.5px;max-width:38em;margin:18px auto 0}
+
+.tour{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start;padding-bottom:72px}
+.steps{display:grid;gap:8px;position:sticky;top:16px}
+.steps button{all:unset;box-sizing:border-box;display:grid;grid-template-columns:30px 1fr;gap:12px;padding:16px;border-radius:14px;border:1px solid transparent;cursor:pointer;transition:background .2s,border-color .2s}
+.steps button:hover{background:var(--surface)}
+.steps button[aria-selected="true"]{background:var(--surface);border-color:var(--line);box-shadow:0 6px 24px rgba(20,20,60,.06)}
+.steps .n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:600 13px var(--mono);background:var(--surface-2);border:1px solid var(--line-2);color:var(--text-3)}
+.steps button[aria-selected="true"] .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.steps b{display:block;font:700 16px var(--display)}
+.steps span{color:var(--text-2);font-size:14.5px}
+.steps .bar{grid-column:2;height:3px;border-radius:2px;background:var(--line);overflow:hidden;margin-top:8px;display:none}
+.steps button[aria-selected="true"] .bar{display:block}
+.steps .bar i{display:block;height:100%;width:0;background:var(--accent)}
+.steps.auto button[aria-selected="true"] .bar i{animation:fill 7s linear forwards}
+@keyframes fill{to{width:100%}}
+@media (max-width:980px){.tour{grid-template-columns:1fr}.steps{position:static;grid-template-columns:repeat(5,minmax(150px,1fr));overflow-x:auto}.steps span{display:none}}
+
+.app{background:var(--app-bg);border:1px solid var(--line-2);border-radius:18px;overflow:hidden;box-shadow:0 30px 80px rgba(20,20,60,.12);min-width:0}
+.chrome{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--app-panel)}
+.chrome .mark{width:22px;height:22px;border-radius:7px}.chrome .mark svg{width:15px;height:15px}
+.chrome b{font:700 14px var(--display)}
+.search{flex:1;max-width:340px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--app-bg);font-size:12.5px;color:var(--text-3);display:flex;align-items:center;padding:0 10px}
+.chrome .range{margin-left:auto;font:12px var(--mono);color:var(--text-2);border:1px solid var(--line);border-radius:8px;padding:5px 9px;white-space:nowrap}
+.view{padding:20px;min-height:470px}
+.view h3{font-size:18px}
+.vh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.vh small{font:12px var(--mono);color:var(--text-3)}
+.panel{background:var(--app-panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+th{font:500 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);text-align:right;padding:10px 16px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 16px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+tr.hl td{background:var(--err-soft)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:2px 9px;border-radius:999px;background:var(--ok-soft);color:var(--ok)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.w{background:var(--warn-soft);color:var(--warn)}.pill.e{background:var(--err-soft);color:var(--err)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.kpi{background:var(--app-panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.kpi small{color:var(--text-3);font-size:12px}
+.kpi b{display:block;font:700 22px var(--display);font-variant-numeric:tabular-nums}
+.kpi.e b{color:var(--err)}
+@media (max-width:640px){.kpis{grid-template-columns:1fr 1fr}}
+.map svg{width:100%;height:auto;display:block}
+.wf{display:grid;gap:6px;padding:16px}
+.wf .r{display:grid;grid-template-columns:minmax(120px,200px) 1fr 64px;gap:12px;align-items:center;font-size:13px}
+.wf .r span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wf .r em{font:normal 12px var(--mono);color:var(--text-3);text-align:right}
+.wf .t{height:12px;position:relative;background:var(--app-bg);border-radius:4px}
+.wf .t i{position:absolute;top:0;bottom:0;border-radius:4px;background:var(--accent)}
+.wf .t i.e{background:var(--err)}
+.attrs{border-top:1px solid var(--line);padding:14px 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;font:12px var(--mono)}
+.attrs div{background:var(--app-bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attrs span{color:var(--text-3)}
+@media (max-width:640px){.attrs{grid-template-columns:1fr}}
+.logs{font:12.5px/1.95 var(--mono);padding:10px 16px}
+.logs div{display:grid;grid-template-columns:96px 52px 110px 1fr;gap:10px;white-space:nowrap}
+.logs .lv{font-weight:500}.logs .I{color:var(--sky)}.logs .W{color:var(--warn)}.logs .E{color:var(--err)}
+.logs .m{overflow:hidden;text-overflow:ellipsis}
+.facets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.facets span{font:12px var(--mono);border:1px solid var(--line);background:var(--app-panel);border-radius:999px;padding:4px 10px;color:var(--text-2)}
+.facets span.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.pods{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.pod{background:var(--app-panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;font-size:13px}
+.pod b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meter{height:6px;border-radius:4px;background:var(--app-bg);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--accent)}
+.meter i.w{background:var(--warn)}.meter i.e{background:var(--err)}
+.pod small{color:var(--text-3);font:11.5px var(--mono)}
+.pod.bad{border-color:var(--err)}
+
+.below{border-top:1px solid var(--line);padding-block:72px}
+.below .wrap{display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+.below h3{font-size:19px;margin-bottom:8px}
+.below p{color:var(--text-2)}
+@media (max-width:860px){.below .wrap{grid-template-columns:1fr}}
+.end{text-align:center;padding-block:64px 80px;border-top:1px solid var(--line)}
+.end h2{font-size:clamp(28px,4vw,42px)}
+.end .row{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+</style>
+
+<nav aria-label="Main"><div class="wrap">
+  <a class="brand" href="#top"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>NebuLens</a>
+  <a class="btn p" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install free</a>
+</div></nav>
+
+<div class="intro" id="top"><div class="wrap">
+  <span class="eyebrow">Product tour · 2 minutes</span>
+  <h1>From "something's red" to the line that failed.</h1>
+  <p>Follow one real-looking incident through NebuLens. Click a step, or let it play.</p>
+</div></div>
+
+<div class="wrap tour">
+  <div class="steps auto" role="tablist" aria-label="Tour steps" id="steps">
+    <button role="tab" aria-selected="true" aria-controls="v0" id="s0"><span class="n">1</span><div><b>Spot it</b><span>Services ranks what's unhealthy. checkout just dropped to 64.</span></div><div class="bar"><i></i></div></button>
+    <button role="tab" aria-selected="false" aria-controls="v1" id="s1"><span class="n">2</span><div><b>See where it spreads</b><span>The service map shows the errors start at payment, not checkout.</span></div><div class="bar"><i></i></div></button>
+    <button role="tab" aria-selected="false" aria-controls="v2" id="s2"><span class="n">3</span><div><b>Open a slow request</b><span>One trace: 1.4 s, and almost all of it is waiting on Postgres.</span></div><div class="bar"><i></i></div></button>
+    <button role="tab" aria-selected="false" aria-controls="v3" id="s3"><span class="n">4</span><div><b>Read its logs</b><span>Same trace ID, filtered for you: lock timeouts after a deploy.</span></div><div class="bar"><i></i></div></button>
+    <button role="tab" aria-selected="false" aria-controls="v4" id="s4"><span class="n">5</span><div><b>Check the cluster</b><span>The postgres pod is at its memory limit. Now you know what to fix.</span></div><div class="bar"><i></i></div></button>
+  </div>
+
+  <div class="app">
+    <div class="chrome"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span><b>NebuLens</b><div class="search">Search services, traces, logs…</div><span class="range">Last 1 hour · example data</span></div>
+
+    <div class="view" role="tabpanel" id="v0" aria-labelledby="s0">
+      <div class="vh"><h3>Services</h3><small>ranked by health</small></div>
+      <div class="kpis">
+        <div class="kpi"><small>Requests</small><b>48.2k</b></div><div class="kpi e"><small>Error rate</small><b>3.4%</b></div>
+        <div class="kpi"><small>p95 latency</small><b>612 ms</b></div><div class="kpi e"><small>Insights</small><b>2 critical</b></div>
+      </div>
+      <div class="panel scroll"><table>
+        <thead><tr><th>Service</th><th>Health</th><th>Req/s</th><th>Errors</th><th>p95</th></tr></thead>
+        <tbody>
+          <tr class="hl"><td>checkout</td><td><span class="pill e">64 · critical</span></td><td>6.1</td><td style="color:var(--err)">8.7%</td><td>1.4 s</td></tr>
+          <tr><td>payment-service</td><td><span class="pill w">72 · degraded</span></td><td>3.8</td><td style="color:var(--warn)">6.2%</td><td>1.3 s</td></tr>
+          <tr><td>api-gateway</td><td><span class="pill">98 · healthy</span></td><td>12.4</td><td>0.4%</td><td>67 ms</td></tr>
+          <tr><td>cart</td><td><span class="pill">100 · healthy</span></td><td>7.9</td><td>0.1%</td><td>38 ms</td></tr>
+          <tr><td>recommendations</td><td><span class="pill">100 · healthy</span></td><td>5.2</td><td>0.3%</td><td>58 ms</td></tr>
+          <tr><td>postgres</td><td><span class="pill w">81 · degraded</span></td><td>21.7</td><td>1.9%</td><td>940 ms</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <div class="view map" role="tabpanel" id="v1" aria-labelledby="s1" hidden>
+      <div class="vh"><h3>Service map</h3><small>edge colour = error rate</small></div>
+      <div class="panel">
+        <svg viewBox="0 0 760 400" role="img" aria-label="Service map: api-gateway calls checkout, cart and recommendations; checkout calls payment-service and pricing; payment-service calls postgres. The checkout to payment and payment to postgres edges are red.">
+          <g fill="none" stroke-width="2.2">
+            <path d="M150 200 C210 200 210 110 270 110" stroke="var(--line-2)"/><path d="M150 200 L270 200" stroke="var(--line-2)"/><path d="M150 200 C210 200 210 300 270 300" stroke="var(--line-2)"/>
+            <path d="M410 110 C460 110 460 70 510 70" stroke="var(--err)" stroke-dasharray="6 5"/><path d="M410 110 C460 110 460 170 510 170" stroke="var(--line-2)"/>
+            <path d="M410 300 C460 300 460 280 510 280" stroke="var(--line-2)"/>
+            <path d="M640 70 C680 70 660 200 690 220" stroke="var(--err)" stroke-dasharray="6 5"/><path d="M640 280 C670 280 670 240 690 232" stroke="var(--line-2)"/>
+          </g>
+          <g font-family="Inter, sans-serif" font-size="13" font-weight="600">
+            <rect x="20" y="176" width="130" height="48" rx="10" fill="var(--app-panel)" stroke="var(--line-2)"/><circle cx="40" cy="200" r="6" fill="var(--ok)"/><text x="54" y="205" fill="var(--text)">api-gateway</text>
+            <rect x="270" y="86" width="140" height="48" rx="10" fill="var(--err-soft)" stroke="var(--err)"/><circle cx="290" cy="110" r="6" fill="var(--err)"/><text x="304" y="115" fill="var(--text)">checkout</text>
+            <rect x="270" y="176" width="140" height="48" rx="10" fill="var(--app-panel)" stroke="var(--line-2)"/><circle cx="290" cy="200" r="6" fill="var(--ok)"/><text x="304" y="205" fill="var(--text)">cart</text>
+            <rect x="270" y="276" width="140" height="48" rx="10" fill="var(--app-panel)" stroke="var(--line-2)"/><circle cx="290" cy="300" r="6" fill="var(--ok)"/><text x="304" y="305" fill="var(--text)">recommendations</text>
+            <rect x="510" y="46" width="130" height="48" rx="10" fill="var(--err-soft)" stroke="var(--err)"/><circle cx="530" cy="70" r="6" fill="var(--warn)"/><text x="544" y="75" fill="var(--text)">payment</text>
+            <rect x="510" y="146" width="130" height="48" rx="10" fill="var(--app-panel)" stroke="var(--line-2)"/><circle cx="530" cy="170" r="6" fill="var(--ok)"/><text x="544" y="175" fill="var(--text)">pricing</text>
+            <rect x="510" y="256" width="130" height="48" rx="10" fill="var(--app-panel)" stroke="var(--line-2)"/><circle cx="530" cy="280" r="6" fill="var(--ok)"/><text x="544" y="285" fill="var(--text)">redis</text>
+            <rect x="660" y="202" width="96" height="48" rx="10" fill="var(--app-panel)" stroke="var(--warn)"/><circle cx="678" cy="226" r="6" fill="var(--warn)"/><text x="690" y="231" fill="var(--text)">postgres</text>
+          </g>
+          <g font-family="JetBrains Mono, monospace" font-size="11" fill="var(--err)"><text x="438" y="62">6.2% err</text><text x="660" y="140">1.9% err</text></g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="view" role="tabpanel" id="v2" aria-labelledby="s2" hidden>
+      <div class="vh"><h3>Trace · POST /checkout</h3><small>1.42 s · 9 spans · 2 errors</small></div>
+      <div class="panel">
+        <div class="wf" aria-label="Trace waterfall">
+          <div class="r"><span>api-gateway · POST /checkout</span><div class="t"><i style="left:0;width:100%"></i></div><em>1.42 s</em></div>
+          <div class="r"><span>&nbsp;&nbsp;checkout · place_order</span><div class="t"><i class="e" style="left:2%;width:96%"></i></div><em>1.36 s</em></div>
+          <div class="r"><span>&nbsp;&nbsp;&nbsp;&nbsp;cart · GET /items</span><div class="t"><i style="left:4%;width:6%"></i></div><em>84 ms</em></div>
+          <div class="r"><span>&nbsp;&nbsp;&nbsp;&nbsp;pricing · quote</span><div class="t"><i style="left:11%;width:5%"></i></div><em>71 ms</em></div>
+          <div class="r"><span>&nbsp;&nbsp;&nbsp;&nbsp;payment · charge</span><div class="t"><i class="e" style="left:17%;width:79%"></i></div><em>1.12 s</em></div>
+          <div class="r"><span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;postgres · SELECT … FOR UPDATE</span><div class="t"><i class="e" style="left:19%;width:72%"></i></div><em>1.02 s</em></div>
+          <div class="r"><span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;redis · GET session</span><div class="t"><i style="left:92%;width:2%"></i></div><em>3 ms</em></div>
+        </div>
+        <div class="attrs">
+          <div><span>db.statement </span>SELECT … FOR UPDATE</div>
+          <div><span>k8s.pod.name </span>postgres-0</div>
+          <div><span>error </span>lock timeout</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" role="tabpanel" id="v3" aria-labelledby="s3" hidden>
+      <div class="vh"><h3>Logs</h3><small>trace_id = 4bf92f3577b34da6</small></div>
+      <div class="facets"><span class="on">trace: 4bf92f35…</span><span>service: any</span><span>severity: ≥ INFO</span><span>env: production</span></div>
+      <div class="panel scroll"><div class="logs">
+        <div><span>14:19:02.004</span><span class="lv I">INFO</span><span>deploy</span><span class="m">payment-service v2.8.0 rolled out (3/3 pods)</span></div>
+        <div><span>14:20:31.102</span><span class="lv I">INFO</span><span>checkout</span><span class="m">order 8812 started for cart 5531</span></div>
+        <div><span>14:20:31.180</span><span class="lv W">WARN</span><span>payment</span><span class="m">connection pool busy (20/20), waiting</span></div>
+        <div><span>14:20:32.391</span><span class="lv E">ERROR</span><span>postgres</span><span class="m">canceling statement due to lock timeout</span></div>
+        <div><span>14:20:32.402</span><span class="lv E">ERROR</span><span>payment</span><span class="m">charge failed after 1 retry: lock timeout</span></div>
+        <div><span>14:20:32.520</span><span class="lv I">INFO</span><span>checkout</span><span class="m">returned 502 to client</span></div>
+      </div></div>
+    </div>
+
+    <div class="view" role="tabpanel" id="v4" aria-labelledby="s4" hidden>
+      <div class="vh"><h3>Kubernetes · prod-eu-1</h3><small>pods in namespace shop</small></div>
+      <div class="pods">
+        <div class="pod bad"><b>postgres-0</b><small>memory 1.94 / 2 Gi</small><div class="meter"><i class="e" style="width:97%"></i></div><small>cpu 0.9 / 1 core</small><div class="meter"><i class="w" style="width:90%"></i></div></div>
+        <div class="pod"><b>payment-7c9d-2kq</b><small>memory 410 / 1024 Mi</small><div class="meter"><i style="width:40%"></i></div><small>cpu 0.3 / 1 core</small><div class="meter"><i style="width:30%"></i></div></div>
+        <div class="pod"><b>payment-7c9d-8xm</b><small>memory 395 / 1024 Mi</small><div class="meter"><i style="width:39%"></i></div><small>cpu 0.3 / 1 core</small><div class="meter"><i style="width:28%"></i></div></div>
+        <div class="pod"><b>checkout-5f4b-h7r</b><small>memory 280 / 512 Mi</small><div class="meter"><i style="width:55%"></i></div><small>cpu 0.4 / 1 core</small><div class="meter"><i style="width:42%"></i></div></div>
+        <div class="pod"><b>cart-66d8-pq2</b><small>memory 190 / 512 Mi</small><div class="meter"><i style="width:37%"></i></div><small>cpu 0.2 / 1 core</small><div class="meter"><i style="width:18%"></i></div></div>
+        <div class="pod"><b>redis-0</b><small>memory 120 / 256 Mi</small><div class="meter"><i style="width:47%"></i></div><small>cpu 0.1 / 0.5 core</small><div class="meter"><i style="width:16%"></i></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="below"><div class="wrap">
+  <div><h3>Everything is linked</h3><p>Services, map, traces, logs and pods share the same OpenTelemetry attributes, so every view is one click from the next.</p></div>
+  <div><h3>Fast with real volumes</h3><p>Summaries are pre-computed every minute. On a test cluster with 3.1 million spans, the Services page loads in 0.1 s.</p></div>
+  <div><h3>Ask instead of click</h3><p>Ask NebuLens "why is checkout slow?" and it walks this same path for you, with the evidence.</p></div>
+</div></section>
+
+<section class="end"><div class="wrap">
+  <h2>Try it with your own services.</h2>
+  <div class="row"><a class="btn p" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install in 20 minutes</a><a class="btn" href="https://github.com/syedammarsuhail/nebulens">View on GitHub</a></div>
+</div></section>
+
+<script>
+(function () {
+  var box = document.getElementById("steps"), tabs = box.querySelectorAll("[role=tab]"), cur = 0, timer = null;
+  var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function show(i, user) {
+    cur = i;
+    tabs.forEach(function (t, j) {
+      t.setAttribute("aria-selected", j === i ? "true" : "false"); t.tabIndex = j === i ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = j !== i;
+    });
+    if (user) stop(); else restartBar();
+  }
+  function restartBar() { var i = tabs[cur].querySelector(".bar i"); i.style.animation = "none"; void i.offsetWidth; i.style.animation = ""; }
+  function stop() { clearInterval(timer); timer = null; box.classList.remove("auto"); }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { show(i, true); });
+    t.addEventListener("keydown", function (e) {
+      var k = e.key, n = tabs.length;
+      if (k === "ArrowDown" || k === "ArrowRight") { e.preventDefault(); show((i + 1) % n, true); tabs[(i + 1) % n].focus(); }
+      if (k === "ArrowUp" || k === "ArrowLeft") { e.preventDefault(); show((i + n - 1) % n, true); tabs[(i + n - 1) % n].focus(); }
+    });
+  });
+  if (still) box.classList.remove("auto");
+  else timer = setInterval(function () { show((cur + 1) % tabs.length, false); }, 7000);
+})();
+</script>
+
+</body>
+</html>

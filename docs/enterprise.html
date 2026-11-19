@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>NebuLens Enterprise</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a security review packet. Left-aligned, document-like sections with a boundary diagram as the hero,
+   a controls matrix, deployment options and an FAQ a CISO would ask. Light first, dark supported. */
+:root{
+  --bg:#f6f7fb; --surface:#ffffff; --surface-2:#eef0f7; --line:#dde0ec; --line-2:#c7cbdc;
+  --ink:#141a33; --ink-2:#465071; --ink-3:#6f7896;
+  --accent:#5546d0; --accent-soft:rgba(85,70,208,.09); --accent-ink:#ffffff;
+  --ok:#137a4c; --ok-soft:rgba(19,122,76,.10); --warn:#a35d07;
+  --boundary:#5546d0;
+  --display:"Manrope","Segoe UI",system-ui,sans-serif;
+  --body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c0e18; --surface:#131628; --surface-2:#191d33; --line:#262b45; --line-2:#363c5c;
+  --ink:#e9eaf6; --ink-2:#aeb3cf; --ink-3:#7e84a5; --accent:#a093ff; --accent-soft:rgba(160,147,255,.12); --accent-ink:#141230;
+  --ok:#4fd39b; --ok-soft:rgba(79,211,155,.12); --warn:#eab048; --boundary:#a093ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c0e18; --surface:#131628; --surface-2:#191d33; --line:#262b45; --line-2:#363c5c;
+  --ink:#e9eaf6; --ink-2:#aeb3cf; --ink-3:#7e84a5; --accent:#a093ff; --accent-soft:rgba(160,147,255,.12); --accent-ink:#141230;
+  --ok:#4fd39b; --ok-soft:rgba(79,211,155,.12); --warn:#eab048; --boundary:#a093ff; color-scheme:dark}
+*{box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+body{background:var(--bg);color:var(--ink);font:17px/1.6 var(--body);overflow-x:hidden}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.015em;text-wrap:balance}
+p{margin:0}
+.label{font:500 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:28px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font:800 18px var(--display)}
+.mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#8b5cf6,#3d6df2);display:grid;place-items:center;flex:none}
+.mark svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}.mark .core{fill:#fff;stroke:none}.mark .glint{stroke-width:1.6;opacity:.85}
+.brand small{font:600 11px var(--mono);letter-spacing:.08em;color:var(--ink-3);border:1px solid var(--line-2);border-radius:5px;padding:2px 6px}
+nav .links{display:flex;gap:22px;font-size:15px}
+nav .links a{color:var(--ink-2);text-decoration:none}nav .links a:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:46px;padding:0 22px;border-radius:10px;font:700 15px var(--display);text-decoration:none;border:1px solid var(--line-2);color:var(--ink);background:var(--surface)}
+.btn.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+nav .btn{height:38px;padding:0 16px;font-size:14px;margin-left:auto}
+@media (max-width:860px){nav .links{display:none}}
+
+header{padding-block:76px 72px;border-bottom:1px solid var(--line);background:var(--surface)}
+header .wrap{display:grid;grid-template-columns:1fr 1.05fr;gap:56px;align-items:center}
+header h1{font-size:clamp(36px,4.8vw,56px);line-height:1.08;font-weight:800;margin-top:14px}
+header .lede{margin-top:20px;font-size:19px;color:var(--ink-2);max-width:32em}
+header .row{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}
+.diagram{background:var(--surface-2);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0}
+.diagram svg{width:100%;height:auto;display:block}
+.diagram figcaption{font-size:14px;color:var(--ink-3);padding:10px 6px 2px}
+@media (max-width:900px){header .wrap{grid-template-columns:1fr}}
+
+section{padding-block:88px;border-bottom:1px solid var(--line)}
+.head{max-width:740px;display:grid;gap:14px;margin-bottom:44px}
+.head h2{font-size:clamp(28px,3.6vw,40px);line-height:1.15}
+.head p{color:var(--ink-2);font-size:18px}
+
+.matrix{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.mrow{display:grid;grid-template-columns:240px 1fr 260px;gap:24px;padding:22px 26px;border-bottom:1px solid var(--line);align-items:start}
+.mrow:last-child{border-bottom:0}
+.mrow h3{font-size:17px}
+.mrow p{color:var(--ink-2);font-size:16px}
+.mrow code{font:13px var(--mono);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:3px 7px;display:inline-block;overflow-wrap:anywhere;max-width:100%}
+@media (max-width:860px){.mrow{grid-template-columns:1fr;gap:8px}}
+
+.deploy{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.opt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;display:grid;gap:10px;align-content:start}
+.opt .tag{font:500 11.5px var(--mono);color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+.opt h3{font-size:18px}
+.opt p{color:var(--ink-2);font-size:15.5px}
+@media (max-width:980px){.deploy{grid-template-columns:1fr 1fr}}
+@media (max-width:560px){.deploy{grid-template-columns:1fr}}
+
+.roles{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:16px}
+.roles th,.roles td{padding:14px 20px;border-bottom:1px solid var(--line);text-align:center}
+.roles th{font:700 14px var(--display);background:var(--surface-2)}
+.roles th:first-child,.roles td:first-child{text-align:left}
+.roles tr:last-child td{border-bottom:0}
+.y{color:var(--ok);font-weight:600}.n{color:var(--ink-3)}
+.scroll{overflow-x:auto;border-radius:14px}
+
+.assure{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+.assure ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.assure li{display:grid;grid-template-columns:26px 1fr;gap:12px}
+.assure li svg{width:22px;height:22px;fill:none;stroke:var(--ok);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;margin-top:3px}
+.assure li b{display:block}
+.assure li span{color:var(--ink-2);font-size:16px}
+.evidence{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;display:grid;gap:12px}
+.evidence h3{font-size:17px}
+.ev{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line-2);font-size:16px}
+.ev:last-child{border-bottom:0}
+.ev b{font:500 14px var(--mono);color:var(--ok);white-space:nowrap}
+@media (max-width:860px){.assure{grid-template-columns:1fr}}
+
+.faq{display:grid;gap:12px;max-width:860px}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 22px}
+summary{cursor:pointer;list-style:none;padding:18px 0;font:700 17px var(--display);display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font:400 22px var(--body);color:var(--accent);line-height:1}
+details[open] summary::after{content:"−"}
+details p{padding:0 0 20px;color:var(--ink-2)}
+
+.cta{background:var(--surface)}
+.cta .wrap{display:flex;justify-content:space-between;align-items:center;gap:28px;flex-wrap:wrap}
+.cta h2{font-size:clamp(26px,3.4vw,38px);max-width:22em}
+.cta .row{display:flex;gap:12px;flex-wrap:wrap}
+footer{padding-block:36px;color:var(--ink-3);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+footer a{color:var(--ink-3);text-decoration:none}footer a:hover{color:var(--ink)}
+</style>
+
+<nav aria-label="Main"><div class="wrap">
+  <a class="brand" href="#top"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>NebuLens <small>ENTERPRISE</small></a>
+  <div class="links"><a href="#controls">Controls</a><a href="#deploy">Deployment</a><a href="#access">Access</a><a href="#assurance">Assurance</a><a href="#faq">FAQ</a></div>
+  <a class="btn p" href="https://github.com/syedammarsuhail/nebulens">Request a demo</a>
+</div></nav>
+
+<header id="top"><div class="wrap">
+  <div>
+    <span class="label">For engineering and security leaders</span>
+    <h1>Full observability. Zero data leaving your network.</h1>
+    <p class="lede">NebuLens gives your teams traces, logs, metrics and AI-assisted investigations, deployed entirely inside your own infrastructure, with the access controls and audit trail your security review asks for.</p>
+    <div class="row"><a class="btn p" href="https://github.com/syedammarsuhail/nebulens">Request a demo</a><a class="btn" href="#controls">Read the controls</a></div>
+  </div>
+  <figure class="diagram" style="margin:0">
+    <svg viewBox="0 0 520 330" role="img" aria-label="Data flow: your services send telemetry to an OpenTelemetry collector, then to NebuLens and your database, all inside your network boundary. An AI provider outside the boundary is used only if you enable it.">
+      <rect x="10" y="14" width="370" height="302" rx="16" fill="none" stroke="var(--boundary)" stroke-width="2" stroke-dasharray="7 6"/>
+      <text x="28" y="40" fill="var(--boundary)" font-family="IBM Plex Mono, monospace" font-size="12" letter-spacing="1">YOUR NETWORK</text>
+      <g font-family="Manrope, sans-serif" font-size="13" font-weight="700">
+        <rect x="30" y="64" width="130" height="58" rx="10" fill="var(--surface)" stroke="var(--line-2)"/><text x="95" y="90" text-anchor="middle" fill="var(--ink)">Your services</text><text x="95" y="108" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-weight="500">OpenTelemetry SDKs</text>
+        <rect x="30" y="226" width="130" height="58" rx="10" fill="var(--surface)" stroke="var(--line-2)"/><text x="95" y="252" text-anchor="middle" fill="var(--ink)">Kubernetes</text><text x="95" y="270" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-weight="500">nodes, pods, logs</text>
+        <rect x="200" y="145" width="150" height="58" rx="10" fill="var(--surface)" stroke="var(--line-2)"/><text x="275" y="171" text-anchor="middle" fill="var(--ink)">OTel Collector</text><text x="275" y="189" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-weight="500">redaction at ingest</text>
+        <rect x="200" y="58" width="150" height="62" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/><text x="275" y="86" text-anchor="middle" fill="var(--ink)">NebuLens</text><text x="275" y="104" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-weight="500">UI · API · alerts · AI</text>
+        <rect x="200" y="232" width="150" height="58" rx="10" fill="var(--surface)" stroke="var(--line-2)"/><text x="275" y="258" text-anchor="middle" fill="var(--ink)">Your database</text><text x="275" y="276" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-weight="500">SQLite or Postgres</text>
+        <rect x="400" y="58" width="108" height="62" rx="10" fill="var(--surface)" stroke="var(--line-2)" stroke-dasharray="4 4"/><text x="454" y="84" text-anchor="middle" fill="var(--ink-2)">AI provider</text><text x="454" y="102" text-anchor="middle" fill="var(--ink-3)" font-size="11" font-weight="500">optional</text>
+      </g>
+      <g stroke="var(--ink-3)" stroke-width="1.6" fill="none">
+        <path d="M160 93 C185 93 180 170 200 172"/><path d="M160 255 C185 255 180 180 200 178"/>
+        <path d="M275 145 L275 120"/><path d="M275 203 L275 232"/>
+      </g>
+      <path d="M350 89 L400 89" stroke="var(--ink-3)" stroke-width="1.6" stroke-dasharray="4 4" fill="none"/>
+      <g fill="var(--ink-3)"><path d="M196 169 l6 3 -6 3z"/><path d="M196 175 l6 3 -6 3z"/><path d="M272 124 l3 -6 3 6z"/><path d="M272 228 l3 6 3 -6z"/><path d="M396 86 l6 3 -6 3z"/></g>
+    </svg>
+    <figcaption>Everything inside the dashed line runs on infrastructure you control. The AI provider is used only if you configure one, and can be a model you host yourself.</figcaption>
+  </figure>
+</div></header>
+
+<section id="controls"><div class="wrap">
+  <div class="head"><span class="label">Security controls</span><h2>The answers to your security questionnaire, built in.</h2><p>Each control is a setting your platform team owns, not a promise from a vendor.</p></div>
+  <div class="matrix">
+    <div class="mrow"><h3>Data residency</h3><p>All telemetry is stored in a database inside your environment. Nothing is sent to NebuLens. Retention is configurable per installation.</p><code>NEBULENS_RETENTION_HOURS</code></div>
+    <div class="mrow"><h3>Sensitive-data redaction</h3><p>Card numbers (Luhn-checked), SSNs, IBANs, JWTs and API keys are masked at ingest by default. Add email and phone numbers, or your own patterns.</p><code>NEBULENS_REDACT=card,ssn,iban,email,jwt,apikey,phone</code></div>
+    <div class="mrow"><h3>Encryption in transit</h3><p>Serve HTTPS directly from the process, or require client certificates (mutual TLS) from collectors and users. Works behind your ingress or service mesh too.</p><code>NEBULENS_TLS_CERT · NEBULENS_TLS_CLIENT_CA</code></div>
+    <div class="mrow"><h3>Single sign-on</h3><p>OIDC login with your identity provider. Map groups to roles and restrict sign-in to your email domains.</p><code>NEBULENS_OIDC_ISSUER · NEBULENS_OIDC_ADMIN_GROUPS</code></div>
+    <div class="mrow"><h3>Separate ingest credentials</h3><p>Collectors use an ingest-only token that cannot read data. Viewers get a read-only token.</p><code>NEBULENS_INGEST_TOKEN · NEBULENS_READ_TOKEN</code></div>
+    <div class="mrow"><h3>Audit trail</h3><p>Every change is recorded with who, what and when. Optionally record reads too, and stream the log to your SIEM over syslog.</p><code>NEBULENS_AUDIT_SYSLOG=siem:514/udp</code></div>
+    <div class="mrow"><h3>Outbound call safety</h3><p>Synthetic checks and alert webhooks can never reach cloud metadata services or link-local addresses, and redirects are re-checked.</p><code>built in, always on</code></div>
+  </div>
+</div></section>
+
+<section id="deploy"><div class="wrap">
+  <div class="head"><span class="label">Deployment</span><h2>Runs where your policies say it must.</h2><p>Same product in every option. Pick the one your platform team already supports.</p></div>
+  <div class="deploy">
+    <div class="opt"><span class="tag">Kubernetes</span><h3>Helm chart</h3><p>EKS, AKS, OpenShift or bare metal. Includes collectors and Kubernetes metrics. Overlays for each platform.</p></div>
+    <div class="opt"><span class="tag">Virtual machine</span><h3>Docker Compose or systemd</h3><p>A single Linux VM, with or without containers. Good for smaller sites and edge locations.</p></div>
+    <div class="opt"><span class="tag">Disconnected</span><h3>Air-gapped</h3><p>One offline bundle with every image, the chart and a checksum manifest. Carry it in, load it, install.</p></div>
+    <div class="opt"><span class="tag">Data store</span><h3>SQLite or Postgres</h3><p>Local disk for a single node, or your managed Postgres for scale and your existing backup policy.</p></div>
+  </div>
+</div></section>
+
+<section id="access"><div class="wrap">
+  <div class="head"><span class="label">Access control</span><h2>Three roles, clear boundaries.</h2><p>Assigned from your identity provider's groups, or with tokens for automation.</p></div>
+  <div class="scroll">
+    <table class="roles">
+      <thead><tr><th>Capability</th><th>Viewer</th><th>Editor</th><th>Admin</th></tr></thead>
+      <tbody>
+        <tr><td>Explore services, traces, logs and metrics</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+        <tr><td>Ask the AI assistant</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+        <tr><td>Create dashboards, alerts, SLOs and checks</td><td class="n">No</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+        <tr><td>Manage environments and integrations</td><td class="n">No</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+        <tr><td>Delete an environment's data, manage cluster tokens and access, view the audit log</td><td class="n">No</td><td class="n">No</td><td class="y">Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section id="assurance"><div class="wrap">
+  <div class="head"><span class="label">Release assurance</span><h2>Every release is scanned before it can ship.</h2><p>Images are published only after every check passes. The evidence is generated for your review.</p></div>
+  <div class="assure">
+    <ul>
+      <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Automated release gate</b><span>Tests, dependency audit, static analysis and secret scanning on the exact code that ships.</span></div></li>
+      <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Snyk and SonarCloud</b><span>Dependency and code scanning with a quality gate that blocks publishing.</span></div></li>
+      <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>SBOM and signed images</b><span>A software bill of materials and a vulnerability report for each image, signed with Sigstore.</span></div></li>
+      <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Non-root container</b><span>The image runs as an unprivileged user; CI checks it on every build.</span></div></li>
+    </ul>
+    <div class="evidence">
+      <h3>v11.1 release check</h3>
+      <div class="ev"><span>Automated tests</span><b>210 passed</b></div>
+      <div class="ev"><span>Known vulnerabilities in dependencies</span><b>0</b></div>
+      <div class="ev"><span>High-severity static analysis findings</span><b>0</b></div>
+      <div class="ev"><span>Secrets in source</span><b>none</b></div>
+      <div class="ev"><span>Helm chart, every platform overlay</span><b>renders</b></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <div class="head"><span class="label">FAQ</span><h2>Questions security teams ask us.</h2></div>
+  <div class="faq">
+    <details open><summary>Does any telemetry leave our network?</summary><p>No. NebuLens stores everything in your own database and makes no calls home. The only optional outbound connection is to an AI provider you configure, which can be a model you host yourself. Without one, the assistant uses built-in rule-based analysis.</p></details>
+    <details><summary>How is personal data handled?</summary><p>Common sensitive values are masked when telemetry arrives, before anything is stored. You choose which patterns apply, can add your own, and set how long data is kept.</p></details>
+    <details><summary>How is the Pro license checked?</summary><p>With a license key validated locally. No license server, no usage reporting, and it works in air-gapped sites.</p></details>
+    <details><summary>Can we run it without internet access?</summary><p>Yes. Build the offline bundle on a connected machine, carry it in, and install with the same Helm chart.</p></details>
+    <details><summary>What happens to our instrumentation if we leave?</summary><p>Nothing changes in your code. NebuLens uses standard OpenTelemetry, so you point the same SDKs and collectors at another backend.</p></details>
+  </div>
+</div></section>
+
+<section class="cta"><div class="wrap">
+  <h2>See NebuLens on your own infrastructure, with your own data.</h2>
+  <div class="row"><a class="btn p" href="https://github.com/syedammarsuhail/nebulens">Request a demo</a><a class="btn" href="https://github.com/syedammarsuhail/nebulens/blob/main/ON-PREM.md">Installation guide</a></div>
+</div></section>
+
+<footer><div class="wrap"><span>NebuLens · self-hosted observability</span><span><a href="https://github.com/syedammarsuhail/nebulens/blob/main/ON-PREM.md">Install options</a> · <a href="https://github.com/syedammarsuhail/nebulens/blob/main/UPGRADE.md">Upgrade notes</a> · <a href="https://github.com/syedammarsuhail/nebulens/blob/main/LICENSE">License</a></span></div></footer>
+
+</body>
+</html>
