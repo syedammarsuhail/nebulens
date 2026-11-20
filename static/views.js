@@ -177,7 +177,7 @@
     const upd = () => { if (!fixed) setParams({ service: state.service, errors: state.errors, q_: state.term, min: state.min }); load(); };
     const tb = el("div", { class: "toolbar" },
       fixed ? null : el("select", { on: { change: e => { state.service = e.target.value; upd(); } } }, el("option", { value: "" }, "All services"), ...svcs.map(s => el("option", { value: s.service, selected: s.service === state.service }, s.service))),
-      el("input", { type: "search", placeholder: "Search span name, attribute or trace id…", value: state.term, style: "width:min(380px,100%);flex:1;max-width:420px", on: { keydown: e => { if (e.key === "Enter") { state.term = e.target.value.trim(); upd(); } } } }),
+      el("input", { type: "search", placeholder: "Operation name, trace id, or key=value (e.g. http.route=/cart)…", value: state.term, style: "width:min(380px,100%);flex:1;max-width:420px", on: { keydown: e => { if (e.key === "Enter") { state.term = e.target.value.trim(); upd(); } } } }),
       el("button", { class: "chipbtn" + (state.errors ? " on" : ""), on: { click: e => { state.errors = !state.errors; e.currentTarget.classList.toggle("on", state.errors); upd(); } } }, el("span", { class: "pill err", style: "height:8px;width:8px;padding:0" }), "Errors only"),
       el("input", { type: "number", placeholder: "min ms", value: state.min, style: "width:92px", on: { change: e => { state.min = e.target.value; upd(); } } }), el("span", { class: "sp" }), count);
     host.append(tb, box); await load();

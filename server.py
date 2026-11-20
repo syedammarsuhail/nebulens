@@ -3223,7 +3223,7 @@ def _trace_text_filter(s, minutes, service, where, args):
         if names:
             where.append("name IN (" + ",".join("?" * len(names)) + ")"); args += names
         else:
-            where.append("start_ns>=? AND attrs LIKE ?"); args += [since_ns(min(minutes, 2)), f"%{v}%"]
+            where.append("start_ns>=? AND attrs LIKE ?"); args += [since_ns(min(minutes, 0.75)), f"%{v}%"]   # newest 45 s
         return True
     if _ops_ready(minutes):
         names = op_names(s)
