@@ -6,6 +6,8 @@
 > - The Logs sidebar lists up to 500 services (was 40). Search lists each trace once, root span first.
 > - The saturation answer names the pod for Kubernetes container metrics (was "unknown").
 > - smoke.py retries the aggregate views for up to 60 s after a restart while caches warm.
+> - Home with a short range (15 minutes) reads the per-minute rollup (one chart point per minute) instead of scanning every
+>   request: it hit the 25 s query limit (503) under load.
 >
 > **v11.6** — chart `0.4.6`. Rebuild the image. The four issues from the end-to-end QA sign-off of v11.5:
 > - A service's Metrics tab shows its built-in metrics (requests, error rate, p95, error logs) even when the service only

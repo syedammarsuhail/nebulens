@@ -125,3 +125,14 @@ def test_search_lists_each_trace_once(client, ingest, srv, monkeypatch):
     tr = client.get("/api/search?q_=op", headers=H).json()["traces"]
     ids = [t["trace_id"] for t in tr]
     assert len(ids) == len(set(ids))
+
+
+def test_home_short_window_uses_rollup(client, ingest, srv, monkeypatch):
+    ingest.span("home15-" + secrets.token_hex(3), "app")
+    seen = []
+    real = srv.q
+    monkeypatch.setattr(srv, "q", lambda sql, args=(): (seen.append(sql), real(sql, args))[1])
+    monkeypatch.setattr(srv, "_rollup_range", lambda m: (srv.since_ns(m) // 60_000_000_000, m * 60))
+    r = client.get("/api/home?minutes=15", headers=H)
+    assert r.status_code == 200 and len(r.json()["timeseries"]) == 15
+    assert not [x for x in seen if "FROM spans" in x and "GROUP BY b" in x]   # no raw per-bucket span scan

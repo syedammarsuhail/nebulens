@@ -4654,7 +4654,11 @@ def home(minutes: float = 60, buckets: int = Query(60, ge=1, le=1000)):
     buckets = max(1, min(int(buckets), 1000))
     t0 = since_ns(minutes)
     w = int(minutes * 60 * 1e9 / buckets)
-    rr = _rollup_range(minutes) if w >= 60_000_000_000 else None
+    rr = _rollup_range(minutes)
+    if rr and w < 60_000_000_000:
+        # Buckets narrower than a minute used to force a raw scan of every request in the window (1.5M rows and a 25 s
+        # timeout for "15 minutes" under load). Draw one point per minute from the rollup instead.
+        buckets = max(1, int(minutes)); w = int(minutes * 60 * 1e9 / buckets)
     if rr:
         by = {i: {"n": v[0], "err": v[1]} for i, v in _rollup_series(rr[0], t0, w, buckets).items()}
     else:
