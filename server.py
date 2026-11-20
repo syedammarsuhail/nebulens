@@ -2743,8 +2743,13 @@ def _approx_rows(table):
         if n <= 0:   # never analysed yet: just tell empty from not empty
             n = 1 if qrows(f"SELECT 1 FROM {table} LIMIT 1") else 0
         return n
-    r = qrows(f"SELECT MAX(rowid) - MIN(rowid) + 1 FROM {table}")
-    return int(r[0][0] or 0) if r else 0
+    # Two separate queries on purpose: SQLite answers a lone MIN(rowid) or MAX(rowid) from the end of the b-tree instantly,
+    # but "MAX(rowid) - MIN(rowid)" in one statement scans the whole table (25 s at 8M spans).
+    hi = qrows(f"SELECT MAX(rowid) FROM {table}")[0][0]
+    if hi is None:
+        return 0
+    lo = qrows(f"SELECT MIN(rowid) FROM {table}")[0][0]
+    return int(hi) - int(lo) + 1
 
 
 @app.get("/api/stats")

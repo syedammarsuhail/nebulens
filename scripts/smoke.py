@@ -17,7 +17,8 @@ import urllib.request
 ap = argparse.ArgumentParser()
 ap.add_argument("base")
 ap.add_argument("--token", default="")
-ap.add_argument("--wait", type=int, default=30, help="seconds to wait for ingested data to appear")
+ap.add_argument("--wait", type=int, default=75,
+                help="seconds to wait for ingested data to appear (lists are cached for NEBULENS_CACHE_TTL, 45 s in the chart)")
 args = ap.parse_args()
 BASE = args.base.rstrip("/")
 SVC = "smoke-" + secrets.token_hex(3)
