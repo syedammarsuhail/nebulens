@@ -4211,10 +4211,15 @@ def clusters_list():
     if rows:
         ph = ",".join("?" * len(rows))
         slugs = [r["slug"] for r in rows]
-        logs_ = {r["env"]: r["n"] for r in q(
-            f"SELECT env, COUNT(*) n FROM logs WHERE ts_ns>=? AND env IN ({ph}) GROUP BY env", (t0, *slugs))}
-        spans_ = {r["env"]: r["n"] for r in q(
-            f"SELECT env, COUNT(*) n FROM spans WHERE start_ns>=? AND env IN ({ph}) GROUP BY env", (t0, *slugs))}
+        if _env_ready(60):    # per-minute counts written at ingest (was: COUNT(*) over raw spans and logs on every call)
+            for env, sp, lg in qrows(f"SELECT env, SUM(spans), SUM(logs) FROM env_rollup WHERE minute>=? AND env IN ({ph}) GROUP BY env",
+                                     (t0 // 60_000_000_000, *slugs)):
+                spans_[env], logs_[env] = int(sp or 0), int(lg or 0)
+        else:
+            logs_ = {r["env"]: r["n"] for r in q(
+                f"SELECT env, COUNT(*) n FROM logs WHERE ts_ns>=? AND env IN ({ph}) GROUP BY env", (t0, *slugs))}
+            spans_ = {r["env"]: r["n"] for r in q(
+                f"SELECT env, COUNT(*) n FROM spans WHERE start_ns>=? AND env IN ({ph}) GROUP BY env", (t0, *slugs))}
     out = []
     for r in rows:
         ls = r["last_seen"] or 0
