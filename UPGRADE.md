@@ -4,6 +4,9 @@
 > - Search (Ctrl+K) finds the built-in metrics.
 > - Ask NebuLens "top error logs" groups the newest 15 minutes (was 3.8 s on a cold cache with tens of thousands of errors).
 > - Deleting an alert rule also deletes its events (and events left behind by earlier deletes).
+> - `/api/stats` (the live badge) is instant at any size: it took 25 s at 8M spans ("MAX(rowid)-MIN(rowid)" scanned the table).
+> - A sender that hangs up mid-upload is counted (`ingest_disconnects` in /api/stats) instead of logging a crash trace.
+> - Verified on EKS at 8.5M spans: smoke test 35/35 five times in a row, no crash traces, pages checked in the browser.
 >
 > **v11.5** — chart `0.4.5`. Rebuild the image. Verified end to end on EKS at 1.3M spans: all 121 API calls return in
 >   under a second with no timeouts, and every page was opened in a browser without errors.
