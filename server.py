@@ -3743,6 +3743,7 @@ def alert_delete(rid: int):
         if not c.execute("SELECT 1 FROM alert_rules WHERE id=?", (rid,)).fetchone():
             raise HTTPException(404, "alert rule not found")
         c.execute("DELETE FROM alert_rules WHERE id=?", (rid,))
+        c.execute("DELETE FROM alert_events WHERE rule_id=? OR rule_id NOT IN (SELECT id FROM alert_rules)", (rid,))
     return {"ok": True}
 
 
@@ -4657,7 +4658,8 @@ def search(q_: str = "", limit: int = 6):
     return {
         "services": q("SELECT DISTINCT service name FROM services_seen WHERE service LIKE ? LIMIT ?", (like, limit)),
         "traces": _search_traces(s, like, limit),
-        "metrics": q("SELECT DISTINCT name FROM metric_names_seen WHERE name LIKE ? LIMIT ?", (like, limit)),
+        "metrics": ([{"name": k} for k in BUILTIN_METRICS if s.lower() in k.lower()]
+                    + q("SELECT DISTINCT name FROM metric_names_seen WHERE name LIKE ? LIMIT ?", (like, limit)))[:limit],
     }
 
 
@@ -4727,11 +4729,12 @@ def investigate(q_: str = "", minutes: float = 60):
     elif any(k in text for k in ("log",)):
         intent, title = "error_logs", "Top error logs"
         rows = q("""SELECT service, substr(body,1,120) msg, COUNT(*) n FROM logs WHERE ts_ns>=? AND severity>=17
-                    GROUP BY service, msg ORDER BY n DESC LIMIT 6""", (since_ns(minutes),))
+                    GROUP BY service, msg ORDER BY n DESC LIMIT 6""", (since_ns(min(minutes, 15)),))   # newest 15 min: fast at any volume
         for r in rows:
             findings.append({"label": r["msg"], "value": f"{r['n']}× in {r['service']}", "severity": "warning",
                              "link": f"#/logs?service={r['service']}&sev=17"})
-        summary = f"{sum(r['n'] for r in rows)} error logs, grouped by message." if rows else "No error logs in this window."
+        span = "in the last 15 minutes" if minutes > 15 else "in this window"
+        summary = (f"{sum(r['n'] for r in rows)} error logs {span}, grouped by message." if rows else f"No error logs {span}.")
     elif any(k in text for k in ("error", "broke", "fail", "wrong", "down", "issue", "problem", "5xx", "500")):
         intent, title = "what_broke", "What is failing"
         bad = [s for s in svcs if s["err"] > 0]

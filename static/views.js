@@ -121,13 +121,17 @@
       } else if (tab === "traces") await tracesBlock(body, { service: svc, fixed: true, q });
       else if (tab === "logs") await logsBlock(body, { service: svc, fixed: true, q });
       else if (tab === "metrics") {
-        const names = (await api("/metrics/names?" + qs({ minutes: M() }))).filter(n => (n.services || "").split(",").includes(svc));
+        const all = await api("/metrics/names?" + qs({ minutes: M() }));
+        // Built-in metrics exist for every service with traffic (derived from its spans and logs); show the key ones first.
+        const KEY = ["nebulens.span.requests", "nebulens.span.error_rate", "nebulens.span.duration.p95", "nebulens.log.errors"];
+        const names = [...KEY.map(k => all.find(n => n.name === k)).filter(Boolean),
+                       ...all.filter(n => n.mtype !== "built-in" && (n.services || "").split(",").includes(svc))];
         if (!names.length) body.append(el("section", { class: "panel fill" }, empty("No metrics for this service", "Send metrics with this service.name to see them here.")));
         else {
           const g = el("div", { class: "grid", style: "grid-template-columns:repeat(auto-fill,minmax(420px,1fr))" }); body.append(g);
           for (const n of names.slice(0, 12)) {
             const d = await api("/metrics/query?" + qs({ name: n.name, service: svc, minutes: m, buckets: 50, agg: n.mtype === "sum" ? "sum" : "avg" }));
-            g.append(panel(el("span", { class: "mono" }, n.name), chart({ t: d.t, type: "area", h: 150, series: Object.entries(d.series).map(([name, values]) => ({ name, values })) }), { sub: n.unit || n.mtype, right: el("a", { class: "btn sm ghost", href: `#/metrics?name=${enc(n.name)}&service=${enc(svc)}` }, "Explore") }));
+            g.append(panel(el("span", { class: "mono" }, n.name), chart({ t: d.t, type: "area", h: 150, series: Object.entries(d.series).map(([name, values]) => ({ name, values })) }), { sub: n.mtype === "built-in" ? (n.description || "built-in") : (n.unit || n.mtype), right: el("a", { class: "btn sm ghost", href: `#/metrics?name=${enc(n.name)}&service=${enc(svc)}` }, "Explore") }));
           }
         }
       } else {

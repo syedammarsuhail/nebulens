@@ -1,3 +1,10 @@
+> **v11.6** — chart `0.4.6`. Rebuild the image. The four issues from the end-to-end QA sign-off of v11.5:
+> - A service's Metrics tab shows its built-in metrics (requests, error rate, p95, error logs) even when the service only
+>   sends traces (it looked empty).
+> - Search (Ctrl+K) finds the built-in metrics.
+> - Ask NebuLens "top error logs" groups the newest 15 minutes (was 3.8 s on a cold cache with tens of thousands of errors).
+> - Deleting an alert rule also deletes its events (and events left behind by earlier deletes).
+>
 > **v11.5** — chart `0.4.5`. Rebuild the image. Verified end to end on EKS at 1.3M spans: all 121 API calls return in
 >   under a second with no timeouts, and every page was opened in a browser without errors.
 > - Metrics page no longer fails when a built-in metric is selected (it is the first one in the list).

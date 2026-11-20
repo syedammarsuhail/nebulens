@@ -76,3 +76,20 @@ def test_trace_text_search(client, ingest, srv, monkeypatch):
     none = client.get(f"/api/traces?service={svc}&q_=no-such-operation-xyz&minutes=60", headers=H).json()
     none = none if isinstance(none, list) else none.get("traces", [])
     assert none == []
+
+
+def test_search_finds_builtin_metrics(client):
+    r = client.get("/api/search?q_=error_rate", headers=H).json()
+    assert {"name": "nebulens.span.error_rate"} in r["metrics"]
+
+
+def test_deleting_alert_removes_its_events(client, srv):
+    rid = client.post("/api/alerts", json={"name": "qa-del-" + secrets.token_hex(3), "signal": "error_rate", "op": ">",
+                                           "threshold": 0, "window_s": 300}, headers=H).json()
+    rid = rid.get("id") or srv.q("SELECT MAX(id) id FROM alert_rules")[0]["id"]
+    with srv.db() as c:
+        c.execute("INSERT INTO alert_events(rule_id, ts, state, value, msg) VALUES(?,?,?,?,?)", (rid, int(time.time()), "firing", 1, "x"))
+        c.execute("INSERT INTO alert_events(rule_id, ts, state, value, msg) VALUES(?,?,?,?,?)", (999999, int(time.time()), "firing", 1, "orphan"))
+    assert client.delete(f"/api/alerts/{rid}", headers=H).status_code == 200
+    left = srv.q("SELECT COUNT(*) n FROM alert_events WHERE rule_id IN (?, 999999)", (rid,))[0]["n"]
+    assert left == 0
