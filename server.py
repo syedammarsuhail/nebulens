@@ -196,7 +196,7 @@ def _jload(v):
 
 # ---------------------------------------------------------------- Postgres SQL translation
 _PG_TABLES = ("spans", "logs", "metrics", "alert_rules", "alert_events",
-              "synthetics", "synthetic_runs", "dashboards", "audit", "slos", "span_rollup", "rollup_state", "edge_rollup", "resource_seen", "env_rollup", "ai_usage")
+              "synthetics", "synthetic_runs", "dashboards", "audit", "slos", "span_rollup", "rollup_state", "edge_rollup", "resource_seen", "env_rollup", "ai_usage", "op_rollup")
 
 def _as_dict(val, default=None):
     """Return a dict from a JSON column. Postgres JSONB arrives as dict already; SQLite TEXT is a string.
@@ -392,6 +392,12 @@ CREATE TABLE IF NOT EXISTS views(
   params TEXT NOT NULL, description TEXT DEFAULT '', builtin INTEGER DEFAULT 0, favorite INTEGER DEFAULT 0,
   updated INTEGER);
 CREATE INDEX IF NOT EXISTS ix_views_kind ON views(kind);
+-- Per-minute calls per (service, operation) for server/consumer/root spans, written at ingest. The Operations tab and
+-- "Ask NebuLens" used to GROUP BY name over every span of the service in the window (20-60 s at a few million spans).
+CREATE TABLE IF NOT EXISTS op_rollup(
+  minute INTEGER, service TEXT, env TEXT DEFAULT '', name TEXT, n INTEGER DEFAULT 0, err INTEGER DEFAULT 0,
+  dur_sum REAL DEFAULT 0, dur_max REAL DEFAULT 0, PRIMARY KEY (minute, service, env, name));
+CREATE INDEX IF NOT EXISTS ix_op_rollup_svc ON op_rollup(service, minute);
 CREATE TABLE IF NOT EXISTS slos(
   id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, service TEXT,
   objective_pct REAL, latency_ms REAL, window_days INTEGER DEFAULT 30);
@@ -433,6 +439,7 @@ def _open_db(path):
     c.execute("INSERT OR IGNORE INTO rollup_state(key, value) VALUES('from_minute', ?)", (int(time.time() // 60),))
     c.execute("INSERT OR IGNORE INTO rollup_state(key, value) VALUES('res_from', ?)", (int(time.time() // 60),))
     c.execute("INSERT OR IGNORE INTO rollup_state(key, value) VALUES('env_from', ?)", (int(time.time() // 60),))
+    c.execute("INSERT OR IGNORE INTO rollup_state(key, value) VALUES('op_from', ?)", (int(time.time() // 60),))
     c.commit()
     return c
 
@@ -479,7 +486,7 @@ if USE_PG:
         _c.execute(_pg_ddl())
         _c.execute(f"INSERT INTO {PG_SCHEMA}.rollup_state(key, value) VALUES('from_minute', %s) ON CONFLICT (key) DO NOTHING",
                    (int(time.time() // 60),))
-        for _k in ("res_from", "env_from"):
+        for _k in ("res_from", "env_from", "op_from"):
             _c.execute(f"INSERT INTO {PG_SCHEMA}.rollup_state(key, value) VALUES(%s, %s) ON CONFLICT (key) DO NOTHING",
                        (_k, int(time.time() // 60)))
         for _t in ("spans", "logs", "metrics"):  # pre-environments databases
@@ -543,6 +550,25 @@ def db():
 
 
 _readers = threading.local()
+# A page read that runs longer than this is stopped: the browser gives up after 20 s anyway, and an abandoned scan kept running
+# and slowed every later request. Only API requests are limited (rollup backfills and the cache warmer are not).
+QUERY_TIMEOUT = float(os.environ.get("NEBULENS_QUERY_TIMEOUT", "25") or 0)
+_q_limited = contextvars.ContextVar("q_limited", default=False)
+
+
+def _progress_check():
+    d = getattr(_readers, "deadline", 0)
+    return 1 if d and time.monotonic() > d else 0
+
+
+def _rd(c, sql, args):
+    """Run a read on this thread's connection, stopped after QUERY_TIMEOUT seconds when serving an API request."""
+    lim = QUERY_TIMEOUT > 0 and _q_limited.get() and not getattr(_warming, "on", False)
+    _readers.deadline = time.monotonic() + QUERY_TIMEOUT if lim else 0
+    try:
+        return c.execute(sql, args).fetchall()
+    finally:
+        _readers.deadline = 0
 
 
 def _reader():
@@ -552,17 +578,24 @@ def _reader():
     if c is None or getattr(_readers, "path", None) != DB_PATH:
         c = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=5)
         c.row_factory = sqlite3.Row
+        c.set_progress_handler(_progress_check, 20000)
         _readers.c, _readers.path = c, DB_PATH
     return c
+
+
+def _pg_limit(conn):
+    if QUERY_TIMEOUT > 0 and _q_limited.get() and not getattr(_warming, "on", False):
+        conn.execute(f"SET LOCAL statement_timeout = {int(QUERY_TIMEOUT * 1000)}")
 
 
 def qrows(sql, args=()):
     """Raw row tuples (no dict conversion) for large scans aggregated by the caller."""
     if USE_PG:
         with _pg_pool.connection() as conn:
+            _pg_limit(conn)
             return conn.execute(_pg_sql(sql), args).fetchall()
     if _cur_db.get() is None:
-        return _reader().execute(sql, args).fetchall()
+        return _rd(_reader(), sql, args)
     conn, lock = _handle()
     with lock:
         return conn.execute(sql, args).fetchall()
@@ -632,10 +665,12 @@ def ttl_cached(fn):
 def q(sql, args=()):
     if USE_PG:
         with _pg_pool.connection() as conn:
+            if sql.lstrip().upper().startswith(("SELECT", "WITH")):
+                _pg_limit(conn)
             with conn.cursor(row_factory=dict_row) as cur:
                 return cur.execute(_pg_sql(sql), args).fetchall()
     if _cur_db.get() is None and sql.lstrip().upper().startswith(("SELECT", "WITH")):
-        return [dict(r) for r in _reader().execute(sql, args).fetchall()]
+        return [dict(r) for r in _rd(_reader(), sql, args)]
     conn, lock = _handle()
     with lock:
         return [dict(r) for r in conn.execute(sql, args).fetchall()]
@@ -1174,6 +1209,9 @@ def ingest_traces(d):
     with db() as c:
         c.executemany("INSERT INTO spans(trace_id,span_id,parent_id,service,name,kind,start_ns,end_ns,dur_ms,status,status_msg,attrs,res,env) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
         _rollup_write(c, _rollup_aggregate((r[3], r[13], r[6], r[9], r[8]) for r in rows if r[2] == "" or r[5] == 2))
+        _ops = _op_aggregate((r[3], r[13], r[4], r[6], r[9], r[8]) for r in rows if r[2] == "" or r[5] in (2, 5))
+        if _ops:
+            c.executemany(_OP_UPSERT, _ops)
         _env_rollup_write(c, ((r[6], r[13], r[3], r[9] == 2) for r in rows), spans=True)
     _known_services.update(batch_services)
     _env_flush()
@@ -1464,6 +1502,8 @@ async def request_id(request: Request, call_next):
     need to run first to produce proper 4xx responses."""
     rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
     request.state.rid = rid
+    if request.method == "GET" and request.url.path.startswith("/api/"):
+        _q_limited.set(True)
     resp = await call_next(request)
     resp.headers["x-request-id"] = rid
     return resp
@@ -1480,6 +1520,20 @@ async def _vexc(request: Request, exc: RequestValidationError):
         details.append(clean)
     return JSONResponse({"error": "validation_failed", "details": details,
                          "request_id": getattr(request.state, "rid", "")}, status_code=400)
+
+
+def _is_query_timeout(exc):
+    m = str(exc).lower()
+    return "interrupted" in m or "statement timeout" in m or "canceling statement" in m
+
+
+@app.exception_handler(sqlite3.OperationalError)
+async def _qtimeout(request: Request, exc: Exception):
+    if _is_query_timeout(exc):
+        return JSONResponse({"error": "query_timeout", "status": 503, "request_id": getattr(request.state, "rid", ""),
+                             "message": f"This view took longer than {QUERY_TIMEOUT:.0f} s and was stopped. Try a shorter time range."},
+                            status_code=503)
+    raise exc
 
 
 @app.exception_handler(HTTPException)
@@ -2772,6 +2826,24 @@ def _rollup_aggregate(spans):
     return [(m, sv, ev, b, a[0], a[1], a[2], a[3]) for (m, sv, ev, b), a in sorted(acc.items())]
 
 
+_OP_UPSERT = ("INSERT INTO op_rollup(minute,service,env,name,n,err,dur_sum,dur_max) VALUES(?,?,?,?,?,?,?,?) "
+              "ON CONFLICT(minute,service,env,name) DO UPDATE SET n=op_rollup.n+excluded.n, err=op_rollup.err+excluded.err, "
+              "dur_sum=op_rollup.dur_sum+excluded.dur_sum, "
+              "dur_max=CASE WHEN excluded.dur_max>op_rollup.dur_max THEN excluded.dur_max ELSE op_rollup.dur_max END")
+
+
+def _op_aggregate(spans):
+    """spans: iterable of (service, env, name, start_ns, status, dur_ms) -> op_rollup rows, sorted by key (no deadlocks)."""
+    acc = {}
+    for svc, env, name, start_ns, status, dur in spans:
+        k = (int(start_ns // 60_000_000_000), svc, env or "", (name or "")[:200])
+        a = acc.get(k)
+        if a is None:
+            a = acc[k] = [0, 0, 0.0, 0.0]
+        a[0] += 1; a[1] += 1 if status == 2 else 0; a[2] += dur; a[3] = max(a[3], dur)
+    return [(m, sv, ev, nm, a[0], a[1], a[2], a[3]) for (m, sv, ev, nm), a in sorted(acc.items())]
+
+
 def _rollup_write(c, rows):
     if rows:
         c.executemany(_ROLLUP_UPSERT, rows)
@@ -3026,8 +3098,14 @@ def resource_attrs(svc: str):
 
 
 @app.get("/api/operations")
+@ttl_cached
 def operations(service: str, minutes: float = 60):
     t0 = since_ns(minutes)
+    if _ops_ready(minutes):
+        return [{"name": nm, "n": int(n), "err": int(e or 0), "avg_ms": float(ds or 0) / n if n else 0, "max_ms": float(mx or 0)}
+                for nm, n, e, ds, mx in qrows("SELECT name, SUM(n), SUM(err), SUM(dur_sum), MAX(dur_max) FROM op_rollup "
+                                              "WHERE service=? AND minute>=? GROUP BY name ORDER BY SUM(n) DESC LIMIT 100",
+                                              (service, t0 // 60_000_000_000))]
     return q("""SELECT name, COUNT(*) n, SUM(status=2) err, AVG(dur_ms) avg_ms, MAX(dur_ms) max_ms
                 FROM spans WHERE service=? AND start_ns>=? AND (kind IN (2,5) OR parent_id='') GROUP BY name ORDER BY n DESC LIMIT 100""",
              (service, t0))
@@ -3104,7 +3182,7 @@ def traces(minutes: float = 60, service: str = "", errors: bool = False, min_ms:
         where.append("(name LIKE ? OR attrs LIKE ? OR trace_id LIKE ?)"); args += [f"%{q_}%"] * 3
     # Candidate traces = those with a span among the newest spans in the window (index scan on start_ns),
     # so listing 50 traces does not aggregate every trace in the window.
-    cap = max(limit * 50, 5000)
+    cap = max(limit * 4, 400) if errors else max(limit * 50, 5000)   # error spans are rare: never walk 10k of them
     cand = list(where) + (["status=2"] if errors else [])
     # Candidate traces: those with a span among the newest spans in the window (index scan on start_ns), newest first.
     ids, seen = [], set()
@@ -3149,7 +3227,10 @@ def trace(trace_id: str):
     for s in spans:
         s["attrs"] = _jload(s["attrs"])
         s.pop("res", None)
-    logs = q("SELECT ts_ns, service, sev_text, severity, body, span_id FROM logs WHERE trace_id=? ORDER BY ts_ns", (trace_id,))
+    lo = min(x["start_ns"] for x in spans) - 60_000_000_000
+    hi = max(x["end_ns"] or x["start_ns"] for x in spans) + 60_000_000_000
+    logs = q("SELECT ts_ns, service, sev_text, severity, body, span_id FROM logs WHERE trace_id=? AND ts_ns>=? AND ts_ns<=? "
+             "ORDER BY ts_ns LIMIT 2000", (trace_id, lo, hi))
     return {"spans": spans, "logs": logs}
 
 
@@ -3477,12 +3558,21 @@ def slos_list():
     rows = q("SELECT * FROM slos")
     for r in rows:
         t0 = time.time_ns() - int(r["window_days"] * 86400 * 1e9)
-        tot = q("SELECT COUNT(*) n, SUM(status=2) err FROM spans WHERE service=? AND start_ns>=? AND (parent_id='' OR kind=2)",
-                (r["service"], t0))[0]
-        d = [x["dur_ms"] for x in q("SELECT dur_ms FROM spans WHERE service=? AND start_ns>=? AND (parent_id='' OR kind=2)", (r["service"], t0))]
-        good = sum(1 for x in d if x <= r["latency_ms"]) - (tot["err"] or 0)
-        good = max(0, good)
-        total = tot["n"] or 0
+        if _rollup_range(r["window_days"] * 1440.0):
+            # From the per-minute duration histogram (was: every span of the window, once per SLO, on every page via home/insights).
+            total, err, fast = 0, 0, 0
+            for b, n, e in qrows("SELECT b, SUM(n), SUM(err) FROM span_rollup WHERE service=? AND minute>=? GROUP BY b",
+                                 (r["service"], t0 // 60_000_000_000)):
+                total += int(n); err += int(e or 0)
+                if _bucket_value(b) <= r["latency_ms"]:
+                    fast += int(n)
+            good = max(0, fast - err)
+        else:
+            tot = q("SELECT COUNT(*) n, SUM(status=2) err FROM spans WHERE service=? AND start_ns>=? AND (parent_id='' OR kind=2)",
+                    (r["service"], t0))[0]
+            d = [x["dur_ms"] for x in q("SELECT dur_ms FROM spans WHERE service=? AND start_ns>=? AND (parent_id='' OR kind=2)", (r["service"], t0))]
+            good = max(0, sum(1 for x in d if x <= r["latency_ms"]) - (tot["err"] or 0))
+            total = tot["n"] or 0
         attainment = 100 * good / total if total else None
         budget_used = max(0.0, (100 - attainment) / (100 - r["objective_pct"]) * 100) if attainment is not None and r["objective_pct"] < 100 else None  # share of the allowed failures already used
         r["attainment_pct"] = round(attainment, 3) if attainment is not None else None
@@ -4518,8 +4608,7 @@ def home(minutes: float = 60, buckets: int = Query(60, ge=1, le=1000)):
         "totals": {"requests": n, "errors": err, "err_pct": round(100 * err / n, 2) if n else 0,
                    "services": len(svcs), "rate": n / (minutes * 60),
                    "p95_avg": sum(s["p95"] for s in svcs) / len(svcs) if svcs else 0,
-                   "logs": q("SELECT COUNT(*) n FROM logs WHERE ts_ns>=?", (t0,))[0]["n"],
-                   "error_logs": q("SELECT COUNT(*) n FROM logs WHERE ts_ns>=? AND severity>=17", (t0,))[0]["n"]},
+                   **_home_log_totals(minutes, t0)},
         "timeseries": ts,
         "top_errors": sorted(svcs, key=lambda s: -s["err_pct"])[:5],
         "top_latency": sorted(svcs, key=lambda s: -s["p95"])[:5],
@@ -4538,14 +4627,38 @@ def search(q_: str = "", limit: int = 6):
     like = f"%{s}%"
     return {
         "services": q("SELECT DISTINCT service name FROM services_seen WHERE service LIKE ? LIMIT ?", (like, limit)),
-        # last 24h only: a leading-wildcard LIKE cannot use an index, so bound how much it can scan
-        "traces": q("""SELECT trace_id, name, service, dur_ms FROM spans WHERE start_ns>=? AND parent_id='' AND (trace_id LIKE ? OR name LIKE ?)
-                       ORDER BY start_ns DESC LIMIT ?""", (since_ns(24 * 60), like, like, limit)),
+        "traces": _search_traces(s, like, limit),
         "metrics": q("SELECT DISTINCT name FROM metric_names_seen WHERE name LIKE ? LIMIT ?", (like, limit)),
     }
 
 
+def _search_traces(s, like, limit):
+    """A trace-id fragment used to scan 24 h of spans with LIKE '%x%' (it rarely matches, so it read everything and timed
+    out, once per keystroke). Hex input is now a prefix range on the trace_id index; words match operation names from
+    op_rollup and fetch one recent trace for each from the minute it was last seen."""
+    if re.fullmatch(r"[0-9a-fA-F]{4,32}", s):
+        lo = s.lower()
+        return q("SELECT trace_id, name, service, dur_ms FROM spans WHERE trace_id>=? AND trace_id<? AND parent_id='' LIMIT ?",
+                 (lo, lo + "g", limit))
+    out = []
+    for svc, nm, m in qrows("SELECT service, name, MAX(minute) FROM op_rollup WHERE minute>=? AND name LIKE ? "
+                            "GROUP BY service, name ORDER BY MAX(minute) DESC LIMIT ?",
+                            (since_ns(24 * 60) // 60_000_000_000, like, limit)):
+        out += q("SELECT trace_id, name, service, dur_ms FROM spans WHERE service=? AND start_ns>=? AND start_ns<? AND name=? LIMIT 1",
+                 (svc, int(m) * 60_000_000_000, (int(m) + 1) * 60_000_000_000, nm))
+    return out
+
+
+def _home_log_totals(minutes, t0):
+    if _env_ready(minutes):
+        n, e = qrows("SELECT SUM(logs), SUM(log_err) FROM env_rollup WHERE minute>=?", (t0 // 60_000_000_000,))[0]
+        return {"logs": int(n or 0), "error_logs": int(e or 0)}
+    return {"logs": q("SELECT COUNT(*) n FROM logs WHERE ts_ns>=?", (t0,))[0]["n"],
+            "error_logs": q("SELECT COUNT(*) n FROM logs WHERE ts_ns>=? AND severity>=17", (t0,))[0]["n"]}
+
+
 @app.get("/api/investigate")
+@ttl_cached
 def investigate(q_: str = "", minutes: float = 60):
     """Rule-based 'Ask NebuLens': maps a question to an analysis over the stored signals."""
     text = q_.lower().strip()
@@ -4556,17 +4669,26 @@ def investigate(q_: str = "", minutes: float = 60):
         for s in sorted(svcs, key=lambda s: -s["p95"])[:5]:
             findings.append({"label": s["service"], "value": f"p95 {s['p95']:.0f}ms · p99 {s['p99']:.0f}ms",
                              "severity": "warning" if s["p95"] > 500 else "info", "link": f"#/services/{s['service']}"})
-        slow = q("""SELECT trace_id, name, service, dur_ms FROM spans WHERE start_ns>=? AND parent_id='' ORDER BY dur_ms DESC LIMIT 3""",
-                 (since_ns(minutes),))
+        # Example slow traces from the slowest service only, recent and above its p95 (was: sort every root span in the window).
+        top = max(svcs, key=lambda s: s["p95"]) if svcs else None
+        slow = q("""SELECT trace_id, name, service, dur_ms FROM spans WHERE service=? AND start_ns>=? AND parent_id='' AND dur_ms>=?
+                    ORDER BY dur_ms DESC LIMIT 3""", (top["service"], since_ns(min(minutes, 15)), top["p95"])) if top else []
         for t in slow:
             findings.append({"label": f"Slow trace {t['name']}", "value": f"{t['dur_ms']:.0f}ms in {t['service']}",
                              "severity": "info", "link": f"#/traces?id={t['trace_id']}"})
         summary = (f"{findings[0]['label']} has the highest p95 latency ({findings[0]['value']})." if findings else "No traffic in this window.")
     elif any(k in text for k in ("saturat", "cpu", "memory", "mem ", "disk", "resource")):
         intent, title = "saturation", "Resource saturation"
-        rows = q("""SELECT service, name, MAX(value) mx, AVG(value) av FROM metrics WHERE ts_ns>=?
-                    AND (name LIKE '%cpu%' OR name LIKE '%memory%' OR name LIKE '%utiliz%' OR name LIKE '%usage%')
-                    GROUP BY service, name ORDER BY mx DESC LIMIT 8""", (since_ns(minutes),))
+        # Names from the registry first, then each through the (name, ts_ns) index (was: GROUP BY over every metric point).
+        names = [r[0] for r in qrows("SELECT DISTINCT name FROM metric_names_seen WHERE hr>=? AND (name LIKE '%cpu%' OR "
+                                     "name LIKE '%memory%' OR name LIKE '%utiliz%' OR name LIKE '%usage%') LIMIT 12",
+                                     (since_ns(minutes) // 3_600_000_000_000,))]
+        t0m = since_ns(min(minutes, 15))
+        rows = []
+        for nm in names:
+            rows += q("SELECT service, name, MAX(value) mx, AVG(value) av FROM metrics WHERE name=? AND ts_ns>=? GROUP BY service, name",
+                      (nm, t0m))
+        rows = sorted(rows, key=lambda r: -(r["mx"] or 0))[:8]
         for r in rows:
             findings.append({"label": f"{r['service']} · {r['name']}", "value": f"max {r['mx']:.3g} · avg {r['av']:.3g}",
                              "severity": "info", "link": f"#/metrics?name={r['name']}&service={r['service']}"})
@@ -4585,10 +4707,11 @@ def investigate(q_: str = "", minutes: float = 60):
         intent, title = "what_broke", "What is failing"
         bad = [s for s in svcs if s["err"] > 0]
         for s in sorted(bad, key=lambda s: -s["err_pct"])[:5]:
-            op = q("""SELECT name, COUNT(*) n, SUM(status=2) e FROM spans WHERE service=? AND start_ns>=? AND kind IN (2,5)
-                      GROUP BY name HAVING SUM(status=2)>0 ORDER BY e DESC LIMIT 1""", (s["service"], since_ns(minutes)))
-            msg = q("""SELECT substr(body,1,140) b FROM logs WHERE service=? AND ts_ns>=? AND severity>=17
-                       GROUP BY b ORDER BY COUNT(*) DESC LIMIT 1""", (s["service"], since_ns(minutes)))
+            op = (q("""SELECT name, SUM(n) n, SUM(err) e FROM op_rollup WHERE service=? AND minute>=?
+                       GROUP BY name HAVING SUM(err)>0 ORDER BY e DESC LIMIT 1""", (s["service"], since_ns(minutes) // 60_000_000_000))
+                  if _ops_ready(minutes) else [])
+            msg = q("""SELECT substr(body,1,140) b FROM logs WHERE ts_ns>=? AND severity>=17 AND service=?
+                       GROUP BY b ORDER BY COUNT(*) DESC LIMIT 1""", (since_ns(min(minutes, 15)), s["service"]))
             val = f"{s['err_pct']:.1f}% errors ({s['err']}/{s['n']})"
             if op:
                 val += f" · worst op {op[0]['name']}"
@@ -5949,6 +6072,43 @@ def _rollup_set_from(v):
         c.execute("UPDATE rollup_state SET value=? WHERE key='from_minute'", (int(v),))
 
 
+def _op_backfill(chunk_min=30, pause=0.2):
+    """Fill op_rollup for spans stored before it existed, newest first; 'op_from' moves back per chunk and is 0 when done."""
+    M = 60_000_000_000
+    _t_start = time.time()
+    if _marker("op_from") == 0:
+        print("rollups ready: operations", flush=True)
+        return
+    try:
+        oldest = qrows("SELECT MIN(start_ns) FROM spans")[0][0]
+        floor_m = int(oldest // M) if oldest is not None else 1 << 62
+        while True:
+            hi = _marker("op_from")
+            if oldest is None or hi <= floor_m:
+                with db() as c:
+                    c.execute("UPDATE rollup_state SET value=0 WHERE key='op_from'")
+                print(f"rollups ready: operations (history converted in {time.time() - _t_start:.0f}s)", flush=True)
+                return
+            lo = max(floor_m, hi - chunk_min)
+            rows = qrows("SELECT service, env, name, start_ns, status, dur_ms FROM spans "
+                         "WHERE start_ns>=? AND start_ns<? AND (parent_id='' OR kind IN (2,5))", (lo * M, hi * M))
+            with db() as c:
+                ops = _op_aggregate(rows)
+                if ops:
+                    c.executemany(_OP_UPSERT, ops)
+                c.execute("UPDATE rollup_state SET value=? WHERE key='op_from'", (lo,))
+            time.sleep(pause)
+    except Exception as e:
+        print("operations rollup backfill stopped (will resume on next start):", e)
+
+
+def _ops_ready(minutes):
+    try:
+        return (time.time_ns() - int(minutes * 60e9)) // 60_000_000_000 >= _marker("op_from")
+    except Exception:
+        return False
+
+
 def _env_backfill(chunk_min=60, pause=0.2):
     """Fill env_rollup for spans and logs stored before it existed, newest first, one chunk per transaction; 'env_from' moves back
     with each committed chunk (live ingest only writes newer minutes, so nothing is counted twice) and is 0 when done."""
@@ -6063,11 +6223,28 @@ def _ensure_metrics_time_index():
         c = sqlite3.connect(DB_PATH, timeout=900)
         t = time.time()
         c.execute("CREATE INDEX IF NOT EXISTS ix_metrics_ts ON metrics(ts_ns)")
+        # Trace detail looked up its logs by trace_id with no index (a full logs scan per trace click), and "errors only"
+        # trace lists walked every span of the window to find the rare failed ones.
+        c.execute("CREATE INDEX IF NOT EXISTS ix_logs_trace ON logs(trace_id) WHERE trace_id<>''")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_spans_err ON spans(start_ns) WHERE status=2")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_spans_svc_err ON spans(service, start_ns) WHERE status=2")
         c.commit(); c.close()
         if time.time() - t > 2:
             print(f"built index ix_metrics_ts in {time.time() - t:.0f}s")
     except Exception as e:
         print("metrics index build failed (will retry next start):", e)
+
+
+def _ensure_pg_indexes():
+    """Postgres: the same lookup indexes, built CONCURRENTLY so ingest keeps writing while they build."""
+    try:
+        with psycopg.connect(DATABASE_URL, autocommit=True) as c:
+            for ddl in (f"CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_logs_trace ON {PG_SCHEMA}.logs(trace_id) WHERE trace_id<>''",
+                        f"CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_spans_err ON {PG_SCHEMA}.spans(start_ns) WHERE status=2",
+                        f"CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_spans_svc_err ON {PG_SCHEMA}.spans(service, start_ns) WHERE status=2"):
+                c.execute(ddl)
+    except Exception as e:
+        print("index build failed (will retry next start):", e)
 
 
 def worker():
@@ -6089,7 +6266,7 @@ def cache_warmer():
         if CACHE_TTL > 0 and time.time() - _last_use[0] < 300:
             t = time.time(); _warming.on = True
             try:
-                for m in (15, 60):
+                for m in (15, 60, 1440):     # 24 h too: demos widen the range, and the first wide request paid 1-3 s
                     services.refresh(float(m)); insights.refresh(float(m)); home.refresh(float(m), 60); service_map.refresh(float(m))
             except Exception as e:
                 print("cache warmer error:", e)
@@ -6110,10 +6287,13 @@ def _start():
     threading.Thread(target=worker, daemon=True).start()
     if not USE_PG:
         threading.Thread(target=_ensure_metrics_time_index, daemon=True).start()
+    else:
+        threading.Thread(target=_ensure_pg_indexes, daemon=True).start()
     if not HOSTED:
         threading.Thread(target=_rollup_backfill, daemon=True).start()
         threading.Thread(target=_res_backfill, daemon=True).start()
         threading.Thread(target=_env_backfill, daemon=True).start()
+        threading.Thread(target=_op_backfill, daemon=True).start()
         threading.Thread(target=cache_warmer, daemon=True).start()
 
 

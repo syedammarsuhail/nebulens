@@ -187,7 +187,11 @@ def test_search_uses_registries_and_bounds_traces(client, ingest):
     ingest.metric(svc, "app", name="search.metric." + svc)
     r = client.get(f"/api/search?q_={svc}", headers=AUTH).json()
     assert {"name": svc} in r["services"] and r["metrics"]
-    assert any(t["service"] == svc for t in client.get("/api/search?q_=op", headers=AUTH).json()["traces"])   # test spans are named "op"
+    found = client.get("/api/search?q_=op", headers=AUTH).json()["traces"]          # test spans are named "op"
+    assert found and all("op" in t["name"] for t in found)
+    tid = found[0]["trace_id"]
+    by_id = client.get(f"/api/search?q_={tid[:10]}", headers=AUTH).json()["traces"]   # a trace-id fragment uses the index
+    assert any(t["trace_id"] == tid for t in by_id)
 
 
 def test_session_secret_persists_beside_the_database(srv):
