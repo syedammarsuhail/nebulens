@@ -9,3 +9,4 @@ psycopg_pool>=3.1
 h11>=0.16.0
 anyio>=4.4.0
 zipp>=3.19.1
+cryptography>=50.0.2  # verifies signed licence keys (Ed25519)

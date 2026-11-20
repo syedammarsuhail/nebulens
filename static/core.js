@@ -78,28 +78,34 @@
   function upgradeModal(detail) {
     const feat = detail.feature || detail.message || "This feature";
     const limit = detail.limit;
-    const isPro = detail.error === "pro_required";
-    const title = isPro ? "Pro Feature" : "Limit Reached";
+    const isEnt = detail.error === "enterprise_required";
+    const isPro = detail.error === "pro_required" || isEnt;
+    const title = isEnt ? "Enterprise Feature" : isPro ? "Pro Feature" : "Limit Reached";
     const desc = isPro
-      ? (feat === "Pro features" ? "Everything below is included in the Pro plan." : `${feat} is available on the Pro plan.`)
+      ? (feat === "Pro features" ? "Everything below is included in the Pro plan." : `${feat} is available on the ${isEnt ? "Enterprise" : "Pro"} plan.`)
       : `You've reached the Community limit of ${limit}.`;
-    const benefits = [
-      ["Unlimited services", "Monitor every microservice with no cap"],
-      ["Unlimited retention", "Keep data as long as you need"],
-      ["Unlimited dashboards & alerts", "Build dashboards, alerts, SLOs, and synthetics without limits"],
-      ["SSO / OIDC", "Single sign-on with your identity provider"],
-      ["Role-based access", "Viewer, editor, and admin roles with audit log"],
-      ["AI Assistant", "AI analysis of your telemetry with the model you choose: Claude, OpenAI, or a local model"],
-      ["Postgres backend", "Scale beyond SQLite with PostgreSQL"],
-      ["Priority support", "Email and Slack support from the team"],
+    const benefits = isEnt ? [
+      ["Per-environment access", "Decide who sees production and who sees test"],
+      ["Audit log to your SIEM", "Stream every change to Splunk, QRadar or any syslog collector"],
+      ["Air-gapped install and support", "Offline licence, supported install, business-hours SLA"],
+      ["Everything in Pro", "Unlimited nodes, retention, dashboards, alerts and AI answers, SSO and roles"],
+    ] : [
+      ["Unlimited nodes and clusters", "Community covers one cluster of up to 5 nodes"],
+      ["Retention you choose", "Keep data longer than 7 days"],
+      ["Unlimited dashboards, alerts, SLOs and synthetics", "No caps"],
+      ["SSO (OIDC) with roles", "Viewer, editor and admin, with an audit log"],
+      ["Unlimited AI answers", "With the model you choose: Claude, OpenAI, or one you host"],
+      ["Email support", "Next business day"],
     ];
     const list = el("div", { class: "upgrade-benefits" },
       ...benefits.map(([t, d]) => el("div", { class: "ub-row" },
         el("div", { class: "ub-check" }, icon("check", 14)),
         el("div", {}, el("div", { class: "ub-title" }, t), el("div", { class: "ub-desc" }, d)))));
-    const price = el("div", { class: "upgrade-price" },
-      el("div", { class: "up-amount" }, "$490"), el("div", { class: "up-period" }, "/ year"),
-      el("div", { class: "up-note" }, "That's less than $41/mo. No usage fees, no per-seat charges."));
+    const price = isEnt
+      ? el("div", { class: "upgrade-price" }, el("div", { class: "up-amount" }, "$35"), el("div", { class: "up-period" }, "/ node / month"),
+          el("div", { class: "up-note" }, "Billed annually, from $10,000 a year. No usage or per-seat fees."))
+      : el("div", { class: "upgrade-price" }, el("div", { class: "up-amount" }, "$99"), el("div", { class: "up-period" }, "/ month"),
+          el("div", { class: "up-note" }, "Includes 5 nodes, then $12 per node per month. Billed annually. No usage or per-seat fees."));
     const body = el("div", { class: "upgrade-modal" },
       el("div", { class: "um-icon" }, icon("sparkle", 28)),
       el("div", { class: "um-desc" }, desc),
@@ -107,11 +113,11 @@
       el("div", { class: "um-key" },
         el("div", { class: "muted", style: "font-size:12px;margin-bottom:6px" }, "Already have a license key?"),
         el("div", { style: "display:flex;gap:8px" },
-          el("input", { id: "upgrade-key-input", type: "text", placeholder: "NEBULENS-XXXX-XXXX-XXXX", style: "flex:1;font-family:var(--mono);font-size:12px" }),
+          el("input", { id: "upgrade-key-input", type: "text", placeholder: "NBL1.…", style: "flex:1;font-family:var(--mono);font-size:12px" }),
           el("button", { class: "btn sm", on: { click: () => { const v = document.getElementById("upgrade-key-input").value.trim(); if (v) { store.set("license_key", v); toast("License key saved. Restart the server with NEBULENS_LICENSE_KEY set to activate Pro.", "ok"); } } } }, "Apply"))));
     modal({ title, width: 520, body, autofocus: false, actions: [
       { label: "Maybe later" },
-      { label: "Get Pro →", primary: true, onClick: () => { window.open("https://nebulens.dev/pricing", "_blank"); } }
+      { label: "Get Pro →", primary: true, onClick: () => { window.open("https://syedammarsuhail.github.io/nebulens/pricing.html", "_blank"); } }
     ] });
   }
   P.upgradeModal = upgradeModal;

@@ -1,3 +1,14 @@
+> **v11.8** — chart `0.4.8`. Rebuild the image. **New plans and licensing.**
+> - **Plans:** Community (free: 1 cluster up to 5 nodes, 20 dashboards, 25 alerts, 3 SLOs, 5 synthetic checks, 7-day retention,
+>   50 AI answers a day; no service cap any more), Pro (unlimited, SSO and roles), Enterprise (adds per-environment access and
+>   the SIEM audit export). See the pricing page.
+> - **Signed licence keys** (`NBL1....`) carry the plan, node count and expiry, are checked offline and cannot be forged.
+>   Helm: `license.existingSecret` (or `license.key`). New `/api/license` and a Settings → Plan panel with node usage; an
+>   over-limit banner never stops data.
+> - **Breaking:** `NEBULENS_TIER=pro` no longer unlocks Pro, and on the free build any non-signed key is ignored. Existing
+>   installs keep the 14-day trial; ask for an `NBL1.` key to stay on Pro.
+> - Per-environment access control and streaming the audit log to a SIEM are now Enterprise features.
+>
 > **v11.7** — chart `0.4.7`. Rebuild the image. The two minor items from the v11.6 end-to-end QA:
 > - Logs page: the chart and sidebar counts are cached and kept warm (first load was ~5 s at 255k logs).
 > - Ask NebuLens "any resource saturation?" is cached and kept warm (1.6 s on a cold cache).

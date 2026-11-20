@@ -134,6 +134,7 @@ def test_community_gets_a_daily_allowance_then_an_upgrade_prompt(srv, client, no
     try:
         _local_model(no_ai, httpd.server_port)
         no_ai.setattr(srv, "IS_PRO", False)
+        no_ai.setattr(srv, "IS_ENTERPRISE", False)
         no_ai.setattr(srv, "COMMUNITY_AI_DAILY", 2)
         with srv.db() as c:
             c.execute("DELETE FROM ai_usage")
@@ -158,6 +159,7 @@ def test_pro_is_unlimited_and_zero_means_pro_only(srv, client, no_ai):
         st = client.get("/api/assistant/status", headers=AUTH).json()          # tests run as Pro
         assert st["enabled"] and st["pro"] is True and st["quota"] is None
         no_ai.setattr(srv, "IS_PRO", False)
+        no_ai.setattr(srv, "IS_ENTERPRISE", False)
         no_ai.setattr(srv, "COMMUNITY_AI_DAILY", 0)
         st = client.get("/api/assistant/status", headers=AUTH).json()
         assert st["enabled"] is False and st["locked"] and st["reason"] == "AI answers are a Pro feature"

@@ -65,6 +65,14 @@ spec:
           env:
             - name: NEBULENS_HOST
               value: "0.0.0.0"
+            {{- $lic := default (dict) .Values.license }}
+            {{- if $lic.existingSecret }}
+            - name: NEBULENS_LICENSE_KEY
+              valueFrom: { secretKeyRef: { name: {{ $lic.existingSecret }}, key: {{ default "license-key" $lic.secretKey }}, optional: true } }
+            {{- else if $lic.key }}
+            - name: NEBULENS_LICENSE_KEY
+              valueFrom: { secretKeyRef: { name: {{ include "nebulens.fullname" . }}-license, key: license-key } }
+            {{- end }}
             - name: NEBULENS_PORT
               value: "4318"
             - name: NEBULENS_DB

@@ -32,8 +32,8 @@ This guide takes you from nothing to a working install with data. It takes about
 Download the newest `nebulens-onprem-v*.tar.gz` from the repository, then:
 
 ```bash
-tar -xzf nebulens-onprem-v11_7.tar.gz
-cd nebulens-v11_7
+tar -xzf nebulens-onprem-v11_8.tar.gz
+cd nebulens-v11_8
 ```
 
 Run every command below from this folder.
@@ -41,8 +41,8 @@ Run every command below from this folder.
 ## 3. Build the image
 
 ```bash
-docker build -t registry.example.com/nebulens:11.7 .
-docker push registry.example.com/nebulens:11.7        # skip if you run on this same machine
+docker build -t registry.example.com/nebulens:11.8 .
+docker push registry.example.com/nebulens:11.8        # skip if you run on this same machine
 ```
 
 No registry (air-gapped)? Save the image to a file and import it on each node: see [ON-PREM.md](ON-PREM.md) section 1.
@@ -70,7 +70,7 @@ TOKEN=<the token from step 4>
 helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml \
   --set image.repository=registry.example.com/nebulens \
-  --set-string image.tag=11.7 --set image.pullPolicy=Always \
+  --set-string image.tag=11.8 --set image.pullPolicy=Always \
   --set persistence.storageClass=local-path \
   --set auth.token=$TOKEN \
   --set collector.traceSamplingPercent=100 \
@@ -89,7 +89,7 @@ agent (here 10 every 5 minutes); everything else stays on eBPF with no restart.
 helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml -f helm/nebulens/values-full.yaml \
   --set image.repository=registry.example.com/nebulens \
-  --set-string image.tag=11.7 --set image.pullPolicy=Always \
+  --set-string image.tag=11.8 --set image.pullPolicy=Always \
   --set persistence.storageClass=local-path \
   --set auth.token=$TOKEN \
   --set-string collector.clusterName=baremetal \
@@ -125,7 +125,7 @@ kubectl -n observability port-forward svc/nebulens 4318:4318      # then http://
 
 ```bash
 cd deploy/vm
-cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.7
+cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.8
 docker compose up -d
 docker compose ps           # both services should be running / healthy
 ```
@@ -181,7 +181,7 @@ and cluster metrics, and the **Kubernetes** page fills, without changing any app
   ```bash
   helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
     -f ./helm/nebulens/values-baremetal.yaml -f ./helm/nebulens/values-full.yaml \
-    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.7 \
+    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.8 \
     --set persistence.storageClass=local-path \
     --set auth.token=$(openssl rand -hex 24) \
     --set "autoInstrumentation.autoInject.namespaces={shop,payments}" \
@@ -259,19 +259,33 @@ Then restart NebuLens (`kubectl -n observability rollout restart statefulset/neb
 **Settings → AI assistant** shows whether it is on and, if not, why. With a cloud model, snippets of query results (service names, error
 messages, log lines) are sent to that provider.
 
-## Community and Pro
+## Plans: Community, Pro and Enterprise
 
-| | Community (free) | Pro |
-|---|---|---|
-| Traces, logs, metrics, service map, Kubernetes, dashboards, alerts, SLOs, synthetics, website monitoring | Yes | Yes |
-| Rule-based assistant | Yes | Yes |
-| AI answers (your own model) | 20 per day (`NEBULENS_COMMUNITY_AI_DAILY`) | Unlimited |
-| Services / dashboards / alert rules / SLOs / synthetic checks | 10 / 10 / 10 / 3 / 3 | Unlimited |
-| Retention | Up to 7 days | Configurable |
-| SSO with roles, per-environment access, full audit log | No | Yes |
+| | Community (free) | Pro | Enterprise |
+|---|---|---|---|
+| Traces, logs, metrics, service map, Kubernetes, eBPF tracing, built-in metrics, Live Insights, website monitoring | Yes | Yes | Yes |
+| PII redaction, mTLS, signed images | Yes | Yes | Yes |
+| Footprint | 1 cluster, up to 5 nodes | Licensed nodes, unlimited clusters | Licensed nodes |
+| Dashboards / alert rules / SLOs / synthetic checks | 20 / 25 / 3 / 5 | Unlimited | Unlimited |
+| AI answers with your own model | 50 per day (`NEBULENS_COMMUNITY_AI_DAILY`); rule-based answers unlimited | Unlimited | Unlimited |
+| Retention | Up to 7 days | Your choice | Your choice |
+| SSO (OIDC) with viewer / editor / admin roles, audit log | No | Yes | Yes |
+| Per-environment access, audit log streamed to a SIEM (syslog) | No | No | Yes |
+| Support | Community | Email, next business day | Business-hours SLA |
 
-A new install gets a 14-day Pro trial. After it ends NebuLens keeps running as Community; nothing is deleted. A Pro license is supplied
-separately and is not part of this package.
+Prices: [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html). A new install gets a 14-day Pro trial; afterwards NebuLens keeps running as Community and
+nothing is deleted. Going over your node count shows a banner; data is never refused.
+
+**Licence key.** Pro and Enterprise keys start with `NBL1.` and carry the plan, the node count and the expiry date. They are
+checked offline (nothing is sent anywhere) and cannot be created or edited without NebuLens' private signing key:
+
+```bash
+kubectl -n observability create secret generic nebulens-license --from-literal=license-key=NBL1....
+helm -n observability upgrade nebulens ./helm/nebulens --reset-then-reuse-values --set license.existingSecret=nebulens-license
+```
+
+Docker VM: set `NEBULENS_LICENSE_KEY=NBL1....` in `.env`. **Settings → Plan** shows the plan, the licensed nodes and how many
+nodes are sending data.
 
 ## Upgrading
 

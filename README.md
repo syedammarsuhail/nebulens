@@ -44,9 +44,9 @@ python server.py                     # UI and OTLP endpoint on http://localhost:
 On Kubernetes:
 
 ```bash
-docker build -t <your-registry>/nebulens:11.7 . && docker push <your-registry>/nebulens:11.7
+docker build -t <your-registry>/nebulens:11.8 . && docker push <your-registry>/nebulens:11.8
 helm install nebulens ./helm/nebulens -n observability --create-namespace \
-  --set image.repository=<your-registry>/nebulens --set-string image.tag=11.7 \
+  --set image.repository=<your-registry>/nebulens --set-string image.tag=11.8 \
   --set auth.token=$(openssl rand -hex 24)
 ```
 
@@ -58,8 +58,9 @@ python scripts/smoke.py http://<host>:4318 --token <your token>
 
 ## Community and Pro
 
-The Community edition in this repository is complete and free to self-host. Pro adds an unlimited AI assistant and enterprise
-features through a separately licensed module, which is not part of this repository.
+Community is free to self-host on one cluster of up to 5 nodes, with the full product: traces, logs, metrics, the service map,
+eBPF tracing, built-in metrics and Live Insights. Pro adds unlimited nodes and retention, SSO with roles and unlimited AI answers;
+Enterprise adds per-environment access, SIEM audit export and air-gapped support. See the [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html).
 
 ## Security
 

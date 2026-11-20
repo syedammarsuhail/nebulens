@@ -150,6 +150,7 @@ def test_security_headers(client):
 
 def test_community_tier_limits(client, srv, monkeypatch):
     monkeypatch.setattr(srv, "IS_PRO", False)
+    monkeypatch.setattr(srv, "IS_ENTERPRISE", False)
     monkeypatch.setattr(srv, "TIER", "community")
     r = client.get("/api/audit", headers=AUTH)
     assert r.status_code == 403 and r.json()["error"] == "pro_required"

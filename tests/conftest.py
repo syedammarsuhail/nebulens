@@ -4,14 +4,29 @@ Run against SQLite (default):   pytest
 Run against Postgres:           NEBULENS_TEST_PG_URL=postgresql://user:pw@host/db pytest
 The same suite runs on both, which is how SQL that only works on one database gets caught.
 """
-import importlib.util, os, pathlib, tempfile
+import base64, importlib.util, json, os, pathlib, tempfile, time
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+
+def _test_license(tier="enterprise", nodes=0, days=30, key=None):
+    """A licence signed with the suite's own throwaway key (server.py trusts it only while running under pytest)."""
+    key = key or _TEST_SIGNER
+    payload = json.dumps({"t": tier, "n": nodes, "exp": int(time.time()) + days * 86400, "c": "test"}).encode()
+    b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+    return f"NBL1.{b(payload)}.{b(key.sign(payload))}"
+
+
+_TEST_SIGNER = Ed25519PrivateKey.generate()
+_TEST_PUB = base64.b64encode(_TEST_SIGNER.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode()
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 _TMP = tempfile.mkdtemp(prefix="nebulens-test-")
 PG_URL = os.environ.get("NEBULENS_TEST_PG_URL", "")
 os.environ.update({
-    "NEBULENS_TOKEN": "tok", "NEBULENS_TIER": "pro", "NEBULENS_CACHE_TTL": "0",
+    "NEBULENS_TOKEN": "tok", "NEBULENS_CACHE_TTL": "0",
+    "NEBULENS_TEST_LICENSE_PUBKEY": _TEST_PUB, "NEBULENS_LICENSE_KEY": _test_license(),   # the suite runs as Enterprise
     "NEBULENS_CLUSTER_NAME": "test-cluster", "NEBULENS_DB": os.path.join(_TMP, "nebulens.db"),
     "NEBULENS_REDACT": "card,ssn,iban,jwt,apikey", "NEBULENS_AUDIT_RETENTION_DAYS": "0",
 })

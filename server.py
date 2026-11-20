@@ -4,7 +4,7 @@ Ingests OTLP (HTTP, JSON or protobuf) for traces, logs and metrics, stores them 
 SQLite, and serves a resource-centric UI: services (RED metrics), service map,
 trace waterfall, log search, metric explorer, alert rules and synthetic checks.
 """
-import asyncio, random, json, math, os, sqlite3, threading, time, ssl, socket, urllib.request, urllib.error, urllib.parse, base64
+import asyncio, random, json, math, os, sqlite3, sys, threading, time, ssl, socket, urllib.request, urllib.error, urllib.parse, base64
 import collections, contextvars, hashlib, hmac, ipaddress, re, secrets
 from contextlib import contextmanager
 from urllib.parse import urlparse
@@ -72,14 +72,63 @@ AUTH_TOKEN = os.environ.get("NEBULENS_TOKEN", "")  # optional bearer token for i
 # NEBULENS_TIER: "community" (free, limited) or "pro" (paid, unlimited).
 # A valid NEBULENS_LICENSE_KEY (validated by the enterprise module) activates Pro.
 # On first install, a 14-day Pro trial is activated automatically.
-_LICENSE_KEY = os.environ.get("NEBULENS_LICENSE_KEY", "")
+#
+# Licence keys (NBL1.<payload>.<signature>) are signed by NebuLens with an Ed25519 private key that never ships. Only the
+# public key is here, so a key cannot be created or altered even with this source code. The payload carries the tier
+# ("pro" or "enterprise"), the licensed node count (0 = unlimited) and the expiry. Checked offline: no phone-home.
+# There is no setting that unlocks a tier without a key (the old NEBULENS_TIER=pro switch did).
+_LICENSE_PUBKEYS = ("VDMn9Yv+M/GgwrkXCy3stTCEKY9AdYw7lWUrI2S2+v4=",)
+_LICENSE_KEY = (os.environ.get("NEBULENS_LICENSE_KEY", "") or "").strip()
+COMMUNITY_NODES = 5        # the free tier: one cluster or VM fleet of up to 5 nodes
+
+
+def _license_pubkeys():
+    keys = list(_LICENSE_PUBKEYS)
+    if "pytest" in sys.modules and os.environ.get("NEBULENS_TEST_LICENSE_PUBKEY"):   # the test suite signs its own keys
+        keys.append(os.environ["NEBULENS_TEST_LICENSE_PUBKEY"])
+    return keys
+
+
+def _parse_license(key):
+    """{"tier", "nodes", "exp", "customer"} for a correctly signed, unexpired key; None otherwise."""
+    key = (key or "").strip()
+    if not key.startswith("NBL1."):
+        return None
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        _, body, sig = key.split(".")
+        payload = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
+        signature = base64.urlsafe_b64decode(sig + "=" * (-len(sig) % 4))
+        for pk in _license_pubkeys():
+            try:
+                Ed25519PublicKey.from_public_bytes(base64.b64decode(pk)).verify(signature, payload)
+                break
+            except Exception:
+                continue
+        else:
+            return None
+        d = json.loads(payload)
+        if d.get("t") not in ("pro", "enterprise") or int(d.get("exp", 0)) < time.time():
+            return None
+        return {"tier": d["t"], "nodes": max(0, int(d.get("n", 0))), "exp": int(d["exp"]), "customer": str(d.get("c", ""))[:120]}
+    except Exception:
+        return None
+
+
+_LICENSE = _parse_license(_LICENSE_KEY)
 _ENTERPRISE = False
-try:
-    from enterprise.license import validate_license
-    _ENTERPRISE = True
-    _LICENSE_VALID = validate_license(_LICENSE_KEY) if _LICENSE_KEY else False
-except ImportError:
-    _LICENSE_VALID = bool(_LICENSE_KEY)
+if not _LICENSE and _LICENSE_KEY:
+    try:   # keys issued before signed licences (NEBULENS-XXXX-...): Pro, unlimited nodes, only with the paid module installed
+        from enterprise.license import validate_license
+        _ENTERPRISE = True
+        if validate_license(_LICENSE_KEY):
+            _LICENSE = {"tier": "pro", "nodes": 0, "exp": 0, "customer": ""}
+    except ImportError:
+        pass
+if _LICENSE_KEY and not _LICENSE:
+    print("WARNING: NEBULENS_LICENSE_KEY is not a valid NebuLens licence (wrong, altered or expired); running as Community.",
+          flush=True)
+_LICENSE_VALID = bool(_LICENSE)
 
 TRIAL_DAYS = 14
 _TRIAL_START = 0
@@ -88,8 +137,8 @@ _TRIAL_DAYS_LEFT = 0
 
 def _init_trial(db_path):
     """Check/initialize trial state from the meta table. Called after DB init."""
-    global _TRIAL_START, _TRIAL_ACTIVE, _TRIAL_DAYS_LEFT, TIER, IS_PRO, RETENTION_HOURS
-    if _LICENSE_VALID or os.environ.get("NEBULENS_TIER", "").strip().lower() == "pro":
+    global _TRIAL_START, _TRIAL_ACTIVE, _TRIAL_DAYS_LEFT, TIER, IS_PRO, RETENTION_HOURS, LICENSED_NODES
+    if _LICENSE_VALID:
         return
     try:
         now = int(time.time())
@@ -115,34 +164,37 @@ def _init_trial(db_path):
         if _TRIAL_ACTIVE:
             TIER = "pro"
             IS_PRO = True
+            LICENSED_NODES = 0          # the trial is not node-limited
             RETENTION_HOURS = float(os.environ.get("NEBULENS_RETENTION_HOURS", "72"))
     except Exception:
         pass
 
-TIER = "pro" if _LICENSE_VALID else os.environ.get("NEBULENS_TIER", "community").strip().lower()
-if TIER not in ("community", "pro"):
-    TIER = "community"
-IS_PRO = TIER == "pro"
+TIER = _LICENSE["tier"] if _LICENSE else "community"
+IS_PRO = TIER in ("pro", "enterprise")          # Pro features: Pro and Enterprise
+IS_ENTERPRISE = TIER == "enterprise"
+LICENSED_NODES = _LICENSE["nodes"] if _LICENSE else COMMUNITY_NODES     # 0 = unlimited
 def _print_tier():
-    if IS_PRO and _ENTERPRISE and _LICENSE_VALID:
-        print(f"NebuLens Pro activated (enterprise module, license validated)")
+    if _LICENSE_VALID:
+        nodes = f"{LICENSED_NODES} nodes" if LICENSED_NODES else "unlimited nodes"
+        until = time.strftime("%Y-%m-%d", time.gmtime(_LICENSE["exp"])) if _LICENSE.get("exp") else "no expiry"
+        print(f"NebuLens {TIER.title()} licence: {nodes}, valid until {until}"
+              + (f" ({_LICENSE['customer']})" if _LICENSE.get("customer") else ""))
     elif IS_PRO and _TRIAL_ACTIVE:
         print(f"NebuLens Pro trial ({_TRIAL_DAYS_LEFT} days remaining)")
-    elif IS_PRO:
-        print("NebuLens Pro activated (NEBULENS_TIER override)")
     else:
         if _TRIAL_START and not _TRIAL_ACTIVE:
             print("NebuLens Community tier (Pro trial expired, set NEBULENS_LICENSE_KEY to upgrade)")
         else:
             print("NebuLens Community tier (set NEBULENS_LICENSE_KEY to activate Pro)")
 
-# Community-tier limits (Pro is unlimited)
+# Community-tier limits (Pro and Enterprise are unlimited). The footprint limit is in nodes, the same unit Pro is priced in;
+# there is no service cap: eBPF finds every workload on day one, and a service cap made the free tier look broken.
 TIER_LIMITS = {
-    "max_services": 10,
-    "max_dashboards": 10,
-    "max_alerts": 10,
+    "max_nodes": COMMUNITY_NODES,
+    "max_dashboards": 20,
+    "max_alerts": 25,
     "max_slos": 3,
-    "max_synthetics": 3,
+    "max_synthetics": 5,
     "retention_days": 7,
 }
 if not IS_PRO:
@@ -163,19 +215,37 @@ def _tier_check(resource: str, table: str):
             {"error": "tier_limit",
              "message": f"Community tier allows up to {limit} {resource}. Upgrade to Pro for unlimited.",
              "limit": limit, "current": count, "tier": "community",
-             "upgrade_url": "https://nebulens.dev/pricing"})
+             "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
 
 
-def _tier_gate(feature: str):
-    """Block a Pro-only feature on community tier."""
-    if IS_PRO:
+def _tier_gate(feature: str, need: str = "pro"):
+    """Block a feature the current tier does not include. need: "pro" (Pro and Enterprise) or "enterprise"."""
+    if IS_ENTERPRISE or (need == "pro" and IS_PRO):
         return
     raise HTTPException(
         403,
-        {"error": "pro_required",
-         "message": f"{feature} is available on the Pro tier. Upgrade to unlock.",
-         "feature": feature, "tier": "community",
-         "upgrade_url": "https://nebulens.dev/pricing"})
+        {"error": "pro_required" if need == "pro" else "enterprise_required",
+         "message": f"{feature} is available on the {need.title()} tier. Upgrade to unlock.",
+         "feature": feature, "tier": TIER, "required_tier": need,
+         "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
+
+
+def _nodes_in_use():
+    """Distinct Kubernetes nodes (or VM hosts) that sent data in the last 24 h; at least 1 once anything arrived."""
+    try:
+        n = qrows("SELECT COUNT(DISTINCT node) FROM resource_seen WHERE node<>'' AND last_seen>=?", (int(time.time()) - 86400,))[0][0]
+        if n:
+            return int(n)
+        return 1 if qrows("SELECT 1 FROM resource_seen LIMIT 1") else 0
+    except Exception:
+        return 0
+
+
+def _license_usage():
+    """Licensed footprint vs what reports in; over the limit shows a banner, never stops ingest."""
+    used = _nodes_in_use()
+    return {"nodes_used": used, "nodes_licensed": LICENSED_NODES or None,
+            "over_limit": bool(LICENSED_NODES) and used > LICENSED_NODES}
 
 # Deployment mode. "selfhosted" (default) is the classic single-tenant NebuLens: one SQLite file, optional
 # NEBULENS_TOKEN. "hosted" is Pulse-hosted multi-tenant: organizations -> projects (one SQLite silo each),
@@ -1174,8 +1244,9 @@ _known_services: set = set()
 _known_services_ts: float = 0
 
 def _check_service_limit(svc_names: set):
-    """On community tier, reject ingest if it would exceed the service cap."""
-    if IS_PRO or not svc_names:
+    """No service cap any more (the free tier is limited by nodes, shown as a banner, and never refuses data)."""
+    return
+    if IS_PRO or not svc_names:   # noqa - kept for reference only
         return
     global _known_services, _known_services_ts
     now = time.time()
@@ -1193,7 +1264,7 @@ def _check_service_limit(svc_names: set):
              "current_services": sorted(_known_services),
              "rejected_services": sorted(new),
              "tier": "community",
-             "upgrade_url": "https://nebulens.dev/pricing"})
+             "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
     # Remember services we just accepted, so a burst of new services inside the 60s cache window
     # cannot slip past the cap.
     _known_services = _known_services | svc_names
@@ -2547,7 +2618,7 @@ def _audit_row_hash(prev, row):
 def _audit_syslog(row):
     """Mirror one audit record to a syslog collector (Splunk, QRadar, rsyslog). Best effort:
     a SIEM being down must never block or fail the request that is being audited."""
-    if not AUDIT_SYSLOG:
+    if not AUDIT_SYSLOG or not IS_ENTERPRISE:     # streaming the audit log to a SIEM is an Enterprise feature
         return
     try:
         dest, _, proto = AUDIT_SYSLOG.partition("/")
@@ -4221,7 +4292,7 @@ def environment_purge(slug: str):
 @app.get("/api/environments/access")
 def environment_access():
     """Pro: which SSO groups are limited to which environments. A group with no row sees everything."""
-    _tier_gate("Per-environment access control")
+    _tier_gate("Per-environment access control", "enterprise")
     rows = q("SELECT grp, slug FROM env_access ORDER BY grp, slug")
     by = {}
     for r in rows:
@@ -4234,7 +4305,7 @@ def environment_access():
 
 @app.put("/api/environments/access")
 def environment_access_set(body: EnvAccessIn):
-    _tier_gate("Per-environment access control")
+    _tier_gate("Per-environment access control", "enterprise")
     with db() as c:
         c.execute("DELETE FROM env_access WHERE grp=?", (body.grp,))
         for sl in body.slugs:
@@ -4990,7 +5061,7 @@ def _ai_name():
 
 # Community gets a daily allowance of AI answers so people can try the real thing; after that the UI offers Pro. 0 = AI answers
 # are Pro-only. Pro (and the trial) is unlimited. Customers bring their own model, so the allowance costs the vendor nothing.
-COMMUNITY_AI_DAILY = max(0, int(os.environ.get("NEBULENS_COMMUNITY_AI_DAILY", "20") or 0))
+COMMUNITY_AI_DAILY = max(0, int(os.environ.get("NEBULENS_COMMUNITY_AI_DAILY", "50") or 0))
 
 
 def _ai_quota():
@@ -5243,7 +5314,7 @@ def assistant(body: AssistantIn):
         raise HTTPException(403, {"error": "tier_limit", "feature": "AI answers", "limit": COMMUNITY_AI_DAILY, "tier": "community",
                                   "message": f"You've used today's {COMMUNITY_AI_DAILY} free AI answers. They reset at 00:00 UTC; "
                                              "Pro has unlimited AI answers. The rule-based analysis is still free.",
-                                  "upgrade_url": "https://nebulens.dev/pricing"})
+                                  "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
     msgs = [m.model_dump() for m in body.messages]
     if body.stream:
         def sse():
@@ -5852,7 +5923,7 @@ def _discovery():
 def _need_sso():
     if not IS_PRO:
         raise HTTPException(403, {"error": "pro_required", "message": "SSO is available on the Pro tier.",
-                                  "tier": "community", "upgrade_url": "https://nebulens.dev/pricing"})
+                                  "tier": "community", "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
     if not sso_enabled():
         raise HTTPException(404, "SSO is not configured")
 
@@ -6071,6 +6142,14 @@ def api_audit_export(since_minutes: float = 0, limit: int = 100000):
             yield ",".join(esc(r.get(c, "")) for c in cols) + "\n"
     return StreamingResponse(gen(), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=nebulens-audit.csv"})
+
+
+@app.get("/api/license")
+def license_info():
+    """Plan, licensed footprint and what is in use. Over the node limit shows a banner; ingest is never refused."""
+    return {"tier": TIER, "trial": bool(_TRIAL_ACTIVE) and not _LICENSE_VALID,
+            "expires": (_LICENSE or {}).get("exp") or None, "customer": (_LICENSE or {}).get("customer") or None,
+            **_license_usage(), "pricing_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"}
 
 
 @app.get("/api/mode")

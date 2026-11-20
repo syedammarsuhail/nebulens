@@ -61,6 +61,13 @@ postgres:
   secretKey: database-url
   schema: ""           # Postgres schema for all NebuLens tables (created automatically). Empty: "nebulens", or "pulse0" on a database Pulse0 filled
 
+# Pro / Enterprise licence key (NBL1....). Without one NebuLens runs as Community (after the 14-day Pro trial).
+# Prefer a Secret you create yourself:  kubectl -n observability create secret generic nebulens-license --from-literal=license-key=NBL1....
+license:
+  existingSecret: ""        # e.g. nebulens-license
+  secretKey: license-key
+  key: ""                   # or paste the key here (the chart stores it in a Secret); never commit it to git
+
 auth:
   # Optional bearer token enforced on /v1/* and /api/*.
   # Leave empty to disable auth (dev/internal only).

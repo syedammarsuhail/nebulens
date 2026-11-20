@@ -78,6 +78,7 @@
     if (hosted()) cfg.unshift(["services", "Organization", "#/organization"]);
     origStart();
     if (P.trial) showTrialBanner();
+    try { P.license = await P.api("/license"); if (P.license?.over_limit) showOverLimitBanner(); } catch { /* signed out or old server */ }
     if (!P.isPro) {
       const gated = new Set(["slo", "synth"]);
       document.querySelectorAll("#rail a").forEach(a => {
@@ -90,6 +91,16 @@
     }
     firstRun();
   };
+
+  function showOverLimitBanner() {
+    const l = P.license; if (!l || document.querySelector(".trial-banner.over")) return;
+    const banner = el("div", { class: "trial-banner expired over" },
+      el("span", {}, `${l.nodes_used} nodes are sending data; your ${P.tier === "community" ? "Community plan" : "licence"} covers ${l.nodes_licensed}. `),
+      el("span", {}, "Everything keeps working; "),
+      el("button", { class: "btn sm primary", on: { click: () => P.upgradeModal({ error: "pro_required", feature: "More nodes" }) } }, "add nodes →"));
+    const content = document.querySelector("#content"), main = document.querySelector("#main");
+    if (content && main) content.insertBefore(banner, main);
+  }
 
   function showTrialBanner() {
     const t = P.trial; if (!t) return;
@@ -376,11 +387,12 @@ service:
       const trialExpired = P.trial && !P.trial.active;
       const planLabel = isTrial ? `Pro Trial (${P.trial.days_left} days left)` : P.isPro ? "Pro" : trialExpired ? "Community (trial expired)" : "Community (free)";
       const tierRows = P.isPro
-        ? [["Plan", planLabel], ["Services", "Unlimited"], ["Retention", "Unlimited"], ["Dashboards", "Unlimited"], ["Alerts", "Unlimited"], ["SLOs", "Unlimited"], ["Synthetics", "Unlimited"]]
+        ? [["Plan", planLabel], ["Nodes", P.license?.nodes_licensed ? `${P.license.nodes_used} of ${P.license.nodes_licensed}` : `${P.license?.nodes_used ?? "-"} (unlimited)`],
+           ["Retention", "Your choice"], ["Dashboards", "Unlimited"], ["Alerts", "Unlimited"], ["SLOs", "Unlimited"], ["Synthetics", "Unlimited"]]
         : [["Plan", planLabel],
-           ["Services", `${P.tierLimits?.max_services || 5} max`], ["Retention", `${P.tierLimits?.retention_days || 7} days`],
-           ["Dashboards", `${P.tierLimits?.max_dashboards || 3} max`], ["Alerts", `${P.tierLimits?.max_alerts || 3} max`],
-           ["SLOs", `${P.tierLimits?.max_slos || 1} max`], ["Synthetics", `${P.tierLimits?.max_synthetics || 1} max`]];
+           ["Nodes", `${P.license?.nodes_used ?? "-"} of ${P.tierLimits?.max_nodes || 5}`], ["Retention", `${P.tierLimits?.retention_days || 7} days`],
+           ["Dashboards", `${P.tierLimits?.max_dashboards || 20} max`], ["Alerts", `${P.tierLimits?.max_alerts || 25} max`],
+           ["SLOs", `${P.tierLimits?.max_slos || 3} max`], ["Synthetics", `${P.tierLimits?.max_synthetics || 5} max`]];
       const pillLabel = isTrial ? "Pro Trial" : P.isPro ? "Pro" : "Community";
       const pillColor = isTrial ? "info" : P.isPro ? "ok" : "";
       grid.prepend(panel("Plan", el("div", { class: "col" },
