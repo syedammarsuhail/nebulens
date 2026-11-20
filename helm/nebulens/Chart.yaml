@@ -2,8 +2,8 @@ apiVersion: v2
 name: nebulens
 description: NebuLens - OpenTelemetry-native personal observability platform
 type: application
-version: 0.4.3
-appVersion: "11_3"
+version: 0.4.4
+appVersion: "11_4"
 keywords: [observability, opentelemetry, tracing, logs, metrics, apm]
 home: https://github.com/syedammarsuhail/nebulens
 maintainers:

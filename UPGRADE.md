@@ -1,3 +1,13 @@
+> **v11.4** — chart `0.4.4`. Rebuild the image. Fixes every slow page found by a full latency audit on EKS (millions of spans).
+> - **Built-in metrics from spans and logs** (like Dash0): `nebulens.span.requests`, `.errors`, `.error_rate`,
+>   `.duration.avg|p50|p95|p99`, `nebulens.log.records`, `.errors`. In the Metrics explorer, dashboards and alerts; no setup.
+> - Service map: node details no longer scan every span (60 s+ -> 0.05 s); clicking a service is instant.
+> - Live badge no longer shows "offline": `/api/stats` estimates row counts instead of counting every row (60 s).
+> - Operations tab, Ask NebuLens, opening a trace, "errors only" traces, search by trace id and SLOs read rollups or
+>   indexes instead of scanning raw data (17-60 s -> fast). New `op_rollup` table, filled in the background on upgrade.
+> - API reads stop after `NEBULENS_QUERY_TIMEOUT` (default 25 s) with a clear message instead of piling up.
+> - The cache warmer also keeps the 24-hour views warm.
+>
 > **v11.3** — chart `0.4.3`. Rebuild the image.
 > - **Integrations page no longer times out.** Detection read spans, logs and metrics once per integration (up to ~30 scans per
 >   page load; slow on large or NFS-hosted databases). It now reads the small registries once per request: 3.3 s -> 0.05-0.1 s on EKS.
