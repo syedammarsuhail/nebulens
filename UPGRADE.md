@@ -6,6 +6,10 @@
 > - The Logs sidebar lists up to 500 services (was 40). Search lists each trace once, root span first.
 > - The saturation answer names the pod for Kubernetes container metrics (was "unknown").
 > - smoke.py retries the aggregate views for up to 60 s after a restart while caches warm.
+> - Traces page text search: a word that matches no operation answers instantly (it scanned up to 1.5M spans and could
+>   time out); key=value matches operation names first and otherwise reads only the newest 2 minutes; filtered lists use a
+>   small candidate set.
+> - Saturation answers skip free/available memory metrics. smoke.py reuses one service name (`nebulens-smoke`).
 > - Home with a short range (15 minutes) reads the per-minute rollup (one chart point per minute) instead of scanning every
 >   request: it hit the 25 s query limit (503) under load.
 >

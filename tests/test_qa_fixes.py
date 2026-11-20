@@ -136,3 +136,21 @@ def test_home_short_window_uses_rollup(client, ingest, srv, monkeypatch):
     r = client.get("/api/home?minutes=15", headers=H)
     assert r.status_code == 200 and len(r.json()["timeseries"]) == 15
     assert not [x for x in seen if "FROM spans" in x and "GROUP BY b" in x]   # no raw per-bucket span scan
+
+
+def test_trace_search_no_match_does_not_scan(client, ingest, srv, monkeypatch):
+    ingest.span("nomatch-" + secrets.token_hex(3), "app")
+    monkeypatch.setattr(srv, "_ops_ready", lambda m: True)
+    seen = []
+    real = srv.qrows
+    monkeypatch.setattr(srv, "qrows", lambda sql, args=(): (seen.append(sql), real(sql, args))[1])
+    r = client.get("/api/traces?q_=no-such-operation-zzz&minutes=60", headers=H).json()
+    assert r == [] and not [x for x in seen if "FROM spans" in x]      # answered from op_rollup alone
+
+
+def test_trace_search_key_value(client, ingest, srv, monkeypatch):
+    svc = "kv-" + secrets.token_hex(3)
+    ingest.span(svc, "app")
+    monkeypatch.setattr(srv, "_ops_ready", lambda m: True)
+    r = client.get(f"/api/traces?service={svc}&q_=http.route=op&minutes=60", headers=H).json()   # value matches op name "op"
+    assert r and all(t["root"] == "op" for t in (r if isinstance(r, list) else r["traces"]))

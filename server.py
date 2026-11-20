@@ -3209,20 +3209,30 @@ def _trace_text_filter(s, minutes, service, where, args):
     index; key=value searches the attributes; any other word matches operation names known from op_rollup."""
     if re.fullmatch(r"[0-9a-fA-F]{4,32}", s):
         where.append("trace_id>=? AND trace_id<?"); args += [s.lower(), s.lower() + "g"]
-        return
-    if "=" in s:
-        where.append("attrs LIKE ?"); args.append(f"%{s.split('=', 1)[1].strip()}%")
-        return
-    names = []
-    if _ops_ready(minutes):
-        sql, a = "SELECT DISTINCT name FROM op_rollup WHERE minute>=? AND name LIKE ?", [since_ns(minutes) // 60_000_000_000, f"%{s}%"]
+        return True
+    def op_names(text):
+        sql, a = "SELECT DISTINCT name FROM op_rollup WHERE minute>=? AND name LIKE ?", [since_ns(minutes) // 60_000_000_000, f"%{text}%"]
         if service:
             sql += " AND service=?"; a.append(service)
-        names = [r[0] for r in qrows(sql + " LIMIT 200", tuple(a))]
-    if names:
+        return [r[0] for r in qrows(sql + " LIMIT 200", tuple(a))]
+    if "=" in s:
+        # key=value: values such as an http.route usually appear in operation names (GET /cart), which are indexed through
+        # op_rollup; only otherwise read attributes, and then only the newest 2 minutes (a whole-window attrs LIKE timed out).
+        v = s.split("=", 1)[1].strip()
+        names = op_names(v) if v and _ops_ready(minutes) else []
+        if names:
+            where.append("name IN (" + ",".join("?" * len(names)) + ")"); args += names
+        else:
+            where.append("start_ns>=? AND attrs LIKE ?"); args += [since_ns(min(minutes, 2)), f"%{v}%"]
+        return True
+    if _ops_ready(minutes):
+        names = op_names(s)
+        if not names:
+            return False          # no operation with that name was seen in the window: nothing to scan for
         where.append("name IN (" + ",".join("?" * len(names)) + ")"); args += names
-    else:   # no known operation matches: fall back to a substring match, but only over the last 15 minutes
-        where.append("start_ns>=? AND name LIKE ?"); args += [since_ns(min(minutes, 15)), f"%{s}%"]
+        return True
+    where.append("start_ns>=? AND name LIKE ?"); args += [since_ns(min(minutes, 15)), f"%{s}%"]   # before op_rollup is ready
+    return True
 
 
 @app.get("/api/traces")
@@ -3231,11 +3241,11 @@ def traces(minutes: float = 60, service: str = "", errors: bool = False, min_ms:
     where, args = ["start_ns>=?"], [t0]
     if service:
         where.append("service=?"); args.append(service)
-    if q_:
-        _trace_text_filter(q_.strip(), minutes, service, where, args)
+    if q_ and _trace_text_filter(q_.strip(), minutes, service, where, args) is False:
+        return []
     # Candidate traces = those with a span among the newest spans in the window (index scan on start_ns),
     # so listing 50 traces does not aggregate every trace in the window.
-    cap = max(limit * 4, 400) if errors else max(limit * 50, 5000)   # error spans are rare: never walk 10k of them
+    cap = max(limit * 4, 400) if (errors or q_) else max(limit * 50, 5000)   # filtered lists: never walk 10k candidates
     cand = list(where) + (["status=2"] if errors else [])
     # Candidate traces: those with a span among the newest spans in the window (index scan on start_ns), newest first.
     ids, seen = [], set()
@@ -4725,7 +4735,8 @@ def _saturation_rows(minutes: float = 60):
     """Highest CPU/memory-style metrics of the newest 15 minutes for Ask NebuLens. Cached and kept warm: it reads up to 12
     metric names through the (name, ts_ns) index (1.6 s on a cold cache at 9M spans)."""
     names = [r[0] for r in qrows("SELECT DISTINCT name FROM metric_names_seen WHERE hr>=? AND (name LIKE '%cpu%' OR "
-                                 "name LIKE '%memory%' OR name LIKE '%utiliz%' OR name LIKE '%usage%') LIMIT 12",
+                                 "name LIKE '%memory%' OR name LIKE '%utiliz%' OR name LIKE '%usage%') "
+                                 "AND name NOT LIKE '%available%' AND name NOT LIKE '%free%' AND name NOT LIKE '%limit' LIMIT 12",
                                  (since_ns(minutes) // 3_600_000_000_000,))]
     t0m = since_ns(min(minutes, 15))
     rows = []

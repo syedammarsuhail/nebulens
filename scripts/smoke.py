@@ -17,11 +17,13 @@ import urllib.request
 ap = argparse.ArgumentParser()
 ap.add_argument("base")
 ap.add_argument("--token", default="")
+ap.add_argument("--unique", action="store_true", help="use a new service name for this run")
 ap.add_argument("--wait", type=int, default=75,
                 help="seconds to wait for ingested data to appear (lists are cached for NEBULENS_CACHE_TTL, 45 s in the chart)")
 args = ap.parse_args()
 BASE = args.base.rstrip("/")
-SVC = "smoke-" + secrets.token_hex(3)
+# One fixed name, so repeated runs do not add a new service to the Services list and map each time (--unique for a new one).
+SVC = "smoke-" + secrets.token_hex(3) if args.unique else "nebulens-smoke"
 results = []
 
 
