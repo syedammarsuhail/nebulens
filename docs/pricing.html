@@ -178,7 +178,7 @@ footer a{color:var(--dim);text-decoration:none}
 <section id="faq"><div class="wrap">
   <h2>Questions</h2>
   <div class="faq">
-    <details open><summary>What counts as a node?</summary><p>One Kubernetes node or one virtual machine that sends data to NebuLens in the last 24 hours. Settings → Plan shows how many are reporting.</p></details>
+    <details open><summary>What counts as a node?</summary><p>One Kubernetes node or one virtual machine whose workloads send data to NebuLens. On Kubernetes, Settings → Plan counts the nodes that reported in the last 24 hours; for VMs you tell us how many you run.</p></details>
     <details><summary>What happens if I go over my node count?</summary><p>A banner tells you, and nothing else changes. NebuLens never refuses or deletes your data because of the licence.</p></details>
     <details><summary>Does the licence phone home?</summary><p>No. Keys are signed and checked offline inside your install, so NebuLens works in air-gapped networks and never reports usage.</p></details>
     <details><summary>What happens after the 14-day trial?</summary><p>NebuLens keeps running as Community. Nothing is deleted; limits above Community stop applying to new items until you add a licence.</p></details>

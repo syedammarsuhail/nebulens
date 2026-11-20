@@ -78,7 +78,7 @@
     if (hosted()) cfg.unshift(["services", "Organization", "#/organization"]);
     origStart();
     if (P.trial) showTrialBanner();
-    try { P.license = await P.api("/license"); if (P.license?.over_limit) showOverLimitBanner(); } catch { /* signed out or old server */ }
+    await P.refreshLicense();
     if (!P.isPro) {
       const gated = new Set(["slo", "synth"]);
       document.querySelectorAll("#rail a").forEach(a => {
@@ -92,12 +92,16 @@
     firstRun();
   };
 
+  P.refreshLicense = async function () {
+    try { P.license = await P.api("/license"); if (P.license?.over_limit) showOverLimitBanner(); } catch { /* signed out or old server */ }
+  };
+
   function showOverLimitBanner() {
     const l = P.license; if (!l || document.querySelector(".trial-banner.over")) return;
     const banner = el("div", { class: "trial-banner expired over" },
       el("span", {}, `${l.nodes_used} nodes are sending data; your ${P.tier === "community" ? "Community plan" : "licence"} covers ${l.nodes_licensed}. `),
       el("span", {}, "Everything keeps working; "),
-      el("button", { class: "btn sm primary", on: { click: () => P.upgradeModal({ error: "pro_required", feature: "More nodes" }) } }, "add nodes →"));
+      el("button", { class: "btn sm primary", on: { click: () => P.upgradeModal(P.isPro && !P.trial?.active ? { error: "nodes" } : { error: "pro_required", feature: "More nodes" }) } }, "add nodes →"));
     const content = document.querySelector("#content"), main = document.querySelector("#main");
     if (content && main) content.insertBefore(banner, main);
   }

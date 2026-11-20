@@ -80,6 +80,8 @@ AUTH_TOKEN = os.environ.get("NEBULENS_TOKEN", "")  # optional bearer token for i
 _LICENSE_PUBKEYS = ("VDMn9Yv+M/GgwrkXCy3stTCEKY9AdYw7lWUrI2S2+v4=",)
 _LICENSE_KEY = (os.environ.get("NEBULENS_LICENSE_KEY", "") or "").strip()
 COMMUNITY_NODES = 5        # the free tier: one cluster or VM fleet of up to 5 nodes
+PRICING_URL = os.environ.get("NEBULENS_PRICING_URL", "https://syedammarsuhail.github.io/nebulens/pricing.html")
+_LIMIT_NAMES = {"dashboards": "dashboards", "alerts": "alert rules", "slos": "SLOs", "synthetics": "synthetic checks"}
 
 
 def _license_pubkeys():
@@ -213,9 +215,9 @@ def _tier_check(resource: str, table: str):
         raise HTTPException(
             403,
             {"error": "tier_limit",
-             "message": f"Community tier allows up to {limit} {resource}. Upgrade to Pro for unlimited.",
+             "message": f"The Community plan allows up to {limit} {_LIMIT_NAMES.get(resource, resource)}. Upgrade to Pro for unlimited.",
              "limit": limit, "current": count, "tier": "community",
-             "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
+             "upgrade_url": PRICING_URL})
 
 
 def _tier_gate(feature: str, need: str = "pro"):
@@ -227,11 +229,12 @@ def _tier_gate(feature: str, need: str = "pro"):
         {"error": "pro_required" if need == "pro" else "enterprise_required",
          "message": f"{feature} is available on the {need.title()} tier. Upgrade to unlock.",
          "feature": feature, "tier": TIER, "required_tier": need,
-         "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
+         "upgrade_url": PRICING_URL})
 
 
 def _nodes_in_use():
-    """Distinct Kubernetes nodes (or VM hosts) that sent data in the last 24 h; at least 1 once anything arrived."""
+    """Distinct Kubernetes nodes that sent data in the last 24 h; at least 1 once anything arrived. VM hosts are not counted:
+    host.name is a container ID inside Docker, so counting it would report every container as a node."""
     try:
         n = qrows("SELECT COUNT(DISTINCT node) FROM resource_seen WHERE node<>'' AND last_seen>=?", (int(time.time()) - 86400,))[0][0]
         if n:
@@ -970,7 +973,8 @@ def _res_seen(sig, service, res, env):
         return
     a = res.get("attributes") if isinstance(res.get("attributes"), dict) else res
     g = lambda k: str(a.get(k) or "")
-    key = (sig, service, g("k8s.cluster.name"), str(a.get("k8s.namespace.name") or a.get("service.namespace") or ""), g("k8s.node.name"),
+    node = g("k8s.node.name")
+    key = (sig, service, g("k8s.cluster.name"), str(a.get("k8s.namespace.name") or a.get("service.namespace") or ""), node,
            g("k8s.pod.name"), g("k8s.deployment.name"), g("telemetry.sdk.language"), g("telemetry.sdk.version"),
            g("service.version"), env or "")
     if len(_res_pending) > 50_000:      # a pathological sender (a new pod name every request) must not grow memory without bound
@@ -1264,7 +1268,7 @@ def _check_service_limit(svc_names: set):
              "current_services": sorted(_known_services),
              "rejected_services": sorted(new),
              "tier": "community",
-             "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
+             "upgrade_url": PRICING_URL})
     # Remember services we just accepted, so a burst of new services inside the 60s cache window
     # cannot slip past the cap.
     _known_services = _known_services | svc_names
@@ -5314,7 +5318,7 @@ def assistant(body: AssistantIn):
         raise HTTPException(403, {"error": "tier_limit", "feature": "AI answers", "limit": COMMUNITY_AI_DAILY, "tier": "community",
                                   "message": f"You've used today's {COMMUNITY_AI_DAILY} free AI answers. They reset at 00:00 UTC; "
                                              "Pro has unlimited AI answers. The rule-based analysis is still free.",
-                                  "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
+                                  "upgrade_url": PRICING_URL})
     msgs = [m.model_dump() for m in body.messages]
     if body.stream:
         def sse():
@@ -5923,7 +5927,7 @@ def _discovery():
 def _need_sso():
     if not IS_PRO:
         raise HTTPException(403, {"error": "pro_required", "message": "SSO is available on the Pro tier.",
-                                  "tier": "community", "upgrade_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"})
+                                  "tier": "community", "upgrade_url": PRICING_URL})
     if not sso_enabled():
         raise HTTPException(404, "SSO is not configured")
 
@@ -6149,7 +6153,7 @@ def license_info():
     """Plan, licensed footprint and what is in use. Over the node limit shows a banner; ingest is never refused."""
     return {"tier": TIER, "trial": bool(_TRIAL_ACTIVE) and not _LICENSE_VALID,
             "expires": (_LICENSE or {}).get("exp") or None, "customer": (_LICENSE or {}).get("customer") or None,
-            **_license_usage(), "pricing_url": "https://syedammarsuhail.github.io/nebulens/pricing.html"}
+            **_license_usage(), "pricing_url": PRICING_URL}
 
 
 @app.get("/api/mode")

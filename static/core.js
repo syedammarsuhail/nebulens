@@ -75,11 +75,25 @@
   class AuthError extends Error { }
   class TierError extends Error { constructor(j) { super(j.message); this.detail = j; } }
 
+  const PRICING = "https://syedammarsuhail.github.io/nebulens/pricing.html";
   function upgradeModal(detail) {
     const feat = detail.feature || detail.message || "This feature";
     const limit = detail.limit;
     const isEnt = detail.error === "enterprise_required";
     const isPro = detail.error === "pro_required" || isEnt;
+    const lic = P.license || {};
+    if (detail.error === "nodes" && P.isPro && !P.trial?.active) {      // a paying customer over the licensed node count
+      const extra = Math.max(1, (lic.nodes_used || 0) - (lic.nodes_licensed || 0));
+      const per = P.tier === "enterprise" ? 35 : 12;
+      modal({ title: "Add nodes to your licence", width: 480, body: el("div", { class: "upgrade-modal" },
+        el("div", { class: "um-icon" }, icon("sparkle", 28)),
+        el("div", { class: "um-desc" }, `${lic.nodes_used} nodes are sending data and your ${P.tier === "enterprise" ? "Enterprise" : "Pro"} licence covers ${lic.nodes_licensed}.`),
+        el("div", { class: "upgrade-price" }, el("div", { class: "up-amount" }, `$${extra * per}`),
+          el("div", { class: "up-period" }, "/ month more"),
+          el("div", { class: "up-note" }, `${extra} more node${extra > 1 ? "s" : ""} at $${per} per node per month. Nothing stops working meanwhile; data is never refused.`))),
+        actions: [{ label: "Later" }, { label: "Request more nodes →", primary: true, onClick: () => window.open(lic.pricing_url || PRICING, "_blank") }] });
+      return;
+    }
     const title = isEnt ? "Enterprise Feature" : isPro ? "Pro Feature" : "Limit Reached";
     const desc = isPro
       ? (feat === "Pro features" ? "Everything below is included in the Pro plan." : `${feat} is available on the ${isEnt ? "Enterprise" : "Pro"} plan.`)
@@ -117,7 +131,7 @@
           el("button", { class: "btn sm", on: { click: () => { const v = document.getElementById("upgrade-key-input").value.trim(); if (v) { store.set("license_key", v); toast("License key saved. Restart the server with NEBULENS_LICENSE_KEY set to activate Pro.", "ok"); } } } }, "Apply"))));
     modal({ title, width: 520, body, autofocus: false, actions: [
       { label: "Maybe later" },
-      { label: "Get Pro →", primary: true, onClick: () => { window.open("https://syedammarsuhail.github.io/nebulens/pricing.html", "_blank"); } }
+      { label: isEnt ? "Get Enterprise →" : "Get Pro →", primary: true, onClick: () => { window.open((P.license && P.license.pricing_url) || PRICING, "_blank"); } }
     ] });
   }
   P.upgradeModal = upgradeModal;
@@ -424,7 +438,7 @@
       if (c.token_required) sso.append(el("div", { class: "muted", style: "text-align:center;font-size:12px" }, "or use an API token below"));
       if (!c.token_required) inp.parentElement.style.display = "none";
     }).catch(() => {});
-    return el("div", { class: "panel", style: "max-width:520px;margin:60px auto;" }, el("div", { class: "ph" }, "Sign in"), el("div", { class: "pb", style: "padding-bottom:0" }, sso), el("div", { class: "pb", style: "display:flex;flex-direction:column;gap:12px" }, el("div", { class: "muted" }, P.mode === "hosted" ? "This is a Pulse-hosted workspace. Paste a read or admin API key for your project; it is stored only in this browser." : "This NebuLens instance has NEBULENS_TOKEN set. Enter it once; it is stored only in this browser."), inp, el("div", {}, el("button", { class: "btn primary", on: { click: () => { store.set("token", inp.value.trim()); render(); } } }, "Unlock"))));
+    return el("div", { class: "panel", style: "max-width:520px;margin:60px auto;" }, el("div", { class: "ph" }, "Sign in"), el("div", { class: "pb", style: "padding-bottom:0" }, sso), el("div", { class: "pb", style: "display:flex;flex-direction:column;gap:12px" }, el("div", { class: "muted" }, P.mode === "hosted" ? "This is a Pulse-hosted workspace. Paste a read or admin API key for your project; it is stored only in this browser." : "This NebuLens instance has NEBULENS_TOKEN set. Enter it once; it is stored only in this browser."), inp, el("div", {}, el("button", { class: "btn primary", on: { click: () => { store.set("token", inp.value.trim()); render(); if (P.refreshLicense) P.refreshLicense(); } } }, "Unlock"))));
   }
   function renderCrumbs(list, view) {
     const c = $("#crumbs"); c.replaceChildren();

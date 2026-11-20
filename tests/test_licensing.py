@@ -72,3 +72,18 @@ def test_community_has_no_service_cap(client, ingest, srv, monkeypatch):
     for i in range(15):                                                                     # was capped at 10
         ingest.span(f"nocap-{i}", "app")
     assert srv.TIER_LIMITS["max_nodes"] == 5 and "max_services" not in srv.TIER_LIMITS
+
+
+def test_container_host_names_are_not_counted_as_nodes(client, ingest, srv):
+    for h in ("3f2a9c1b7d00", "8e1d4b2c9a11"):                 # inside Docker host.name is the container ID
+        ingest.span("dockersvc-" + h, "op", **{"host.name": h})
+    srv._res_flush()
+    nodes = {r[0] for r in srv.qrows("SELECT DISTINCT node FROM resource_seen WHERE node<>''")}
+    assert not ({"3f2a9c1b7d00", "8e1d4b2c9a11"} & nodes)
+
+
+def test_limit_message_uses_readable_names(client, srv, monkeypatch):
+    monkeypatch.setattr(srv, "IS_PRO", False)
+    monkeypatch.setitem(srv.TIER_LIMITS, "max_slos", 0)
+    r = client.post("/api/slos", headers=AUTH, json={"name": "x", "service": "a", "objective_pct": 99.0, "latency_ms": 300})
+    assert r.status_code == 403 and "3 slos" not in r.json()["message"] and "SLOs" in r.json()["message"]
