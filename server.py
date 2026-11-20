@@ -3250,11 +3250,15 @@ def metric_names(minutes: float = 60):
     where, args = "", ()
     if minutes and minutes > 0:
         where, args = "WHERE hr>=?", (int(since_ns(minutes) // 3_600_000_000_000),)
-    return q(f"SELECT name, unit, mtype, SUM(points) points, {_gc} services FROM metric_names_seen {where} "
+    rows = q(f"SELECT name, unit, mtype, SUM(points) points, {_gc} services FROM metric_names_seen {where} "
              f"GROUP BY name, unit, mtype ORDER BY name", args)
+    return [{"name": k, "unit": u, "mtype": "built-in", "points": None, "services": None, "description": d}
+            for k, (u, d) in BUILTIN_METRICS.items()] + list(rows)
 
 
 def _metric_series(name, service, minutes, buckets, agg, group_by=""):
+    if name in BUILTIN_METRICS:
+        return _builtin_series(name, service, minutes, buckets, group_by)
     buckets = max(1, min(int(buckets), 1000))
     t0 = since_ns(minutes); w = int(minutes * 60 * 1e9 / buckets)
     fn = {"avg": "AVG", "max": "MAX", "min": "MIN", "sum": "SUM", "count": "COUNT"}.get(agg, "AVG")
@@ -3275,6 +3279,66 @@ def _metric_series(name, service, minutes, buckets, agg, group_by=""):
         series.setdefault(str(r["grp"]), {})[r["b"]] = r["v"]
     return {"t": [(t0 + i * w) / 1e6 for i in range(buckets)],
             "series": {k: [v.get(i) for i in range(buckets)] for k, v in series.items()}}
+
+
+# ---- built-in metrics: derived from spans and logs, nothing to configure
+# Served from the per-minute rollups written at ingest (span_rollup: server/root spans per service with a duration histogram;
+# env_rollup: span and log counts per service), so they cost no extra storage and stay fast at any volume. They behave like
+# any other metric: Metrics explorer, dashboards and alerts (metric_avg / metric_max with the name as the expression).
+BUILTIN_METRICS = {
+    "nebulens.span.requests":       ("1/s", "Requests per second (server and root spans)"),
+    "nebulens.span.errors":         ("1/s", "Failed requests per second"),
+    "nebulens.span.error_rate":     ("%",   "Share of requests that failed"),
+    "nebulens.span.duration.avg":   ("ms",  "Average request duration"),
+    "nebulens.span.duration.p50":   ("ms",  "Median request duration"),
+    "nebulens.span.duration.p95":   ("ms",  "95th percentile request duration"),
+    "nebulens.span.duration.p99":   ("ms",  "99th percentile request duration"),
+    "nebulens.log.records":         ("1/s", "Log records per second"),
+    "nebulens.log.errors":          ("1/s", "Error log records (ERROR and above) per second"),
+}
+
+
+def _builtin_series(name, service, minutes, buckets, group_by=""):
+    """Time series of one built-in metric, one series per service (or per environment with group_by env)."""
+    buckets = max(1, min(int(buckets), 1000))
+    t0 = since_ns(minutes); w = int(minutes * 60 * 1e9 / buckets)
+    secs = max(w / 1e9, 60.0)                 # rollups are per minute: a narrower bucket still holds a whole minute
+    gcol = "env" if group_by in ("env", "deployment.environment") else "service"
+    where, args = "minute>=?", [t0 // 60_000_000_000]
+    if service:
+        where += " AND service=?"; args.append(service)
+    idx = lambda m: min(buckets - 1, max(0, int((m * 60_000_000_000 + 30_000_000_000 - t0) // w)))
+    series = {}
+    if name.startswith("nebulens.log."):
+        col = "log_err" if name == "nebulens.log.errors" else "logs"
+        for m, g, n in qrows(f"SELECT minute, {gcol}, SUM({col}) FROM env_rollup WHERE {where} GROUP BY minute, {gcol}", tuple(args)):
+            d = series.setdefault(str(g or ""), {}); i = idx(m); d[i] = d.get(i, 0) + int(n or 0)
+        out = {g: [(d[i] / secs) if i in d else None for i in range(buckets)] for g, d in series.items()}
+    else:
+        for m, g, b, n, e, ds, dm in qrows(
+                f"SELECT minute, {gcol}, b, SUM(n), SUM(err), SUM(dur_sum), MAX(dur_max) FROM span_rollup WHERE {where} "
+                f"GROUP BY minute, {gcol}, b", tuple(args)):
+            d = series.setdefault(str(g or ""), {}); i = idx(m)
+            a = d.setdefault(i, [0, 0, 0.0, 0.0, {}])
+            n = int(n or 0); a[0] += n; a[1] += int(e or 0); a[2] += float(ds or 0); a[3] = max(a[3], float(dm or 0))
+            a[4][b] = a[4].get(b, 0) + n
+
+        def val(a):
+            n, e, ds, mx, h = a
+            if not n:
+                return None
+            if name == "nebulens.span.requests":
+                return n / secs
+            if name == "nebulens.span.errors":
+                return e / secs
+            if name == "nebulens.span.error_rate":
+                return 100.0 * e / n
+            if name == "nebulens.span.duration.avg":
+                return ds / n
+            frac = {"nebulens.span.duration.p50": .5, "nebulens.span.duration.p95": .95, "nebulens.span.duration.p99": .99}[name]
+            return _hist_pct(h, n, frac, mx)
+        out = {g: [val(d[i]) if i in d else None for i in range(buckets)] for g, d in series.items()}
+    return {"t": [(t0 + i * w) / 1e6 for i in range(buckets)], "series": out}
 
 
 @app.get("/api/metrics/query")
@@ -3496,6 +3560,13 @@ def eval_signal(signal, expr, service, window_s):
     if signal == "log_errors":
         return float(q(f"SELECT COUNT(*) n FROM logs WHERE ts_ns>=? AND severity>=17{sv}" + (" AND body LIKE ?" if expr else ""),
                        (t0, *sa, *([f"%{expr}%"] if expr else [])))[0]["n"])
+    if signal in ("metric_avg", "metric_max") and expr in BUILTIN_METRICS:
+        mins = max(1.0, window_s / 60.0)
+        if signal == "metric_avg":       # the whole window as one bucket
+            vals = [v for vs in _builtin_series(expr, service, mins, 1)["series"].values() for v in vs if v is not None]
+            return max(vals) if vals else 0.0          # worst service when no service is set
+        vals = [v for vs in _builtin_series(expr, service, mins, max(1, int(mins)))["series"].values() for v in vs if v is not None]
+        return max(vals) if vals else 0.0
     if signal in ("metric_avg", "metric_max"):
         fn = "AVG" if signal == "metric_avg" else "MAX"
         r = q(f"SELECT {fn}(value) v FROM metrics WHERE name=? AND ts_ns>=?{sv}", (expr, t0, *sa))[0]

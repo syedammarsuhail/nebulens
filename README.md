@@ -15,6 +15,8 @@ your network.
 - **Traces, logs and metrics:** search, filter and drill down, from a slow request to its logs and its host.
 - **Kubernetes:** clusters, nodes, workloads and pods, with CPU and memory, from a collector the Helm chart installs.
 - **Dashboards, alerts, SLOs and synthetic checks,** with a template library.
+- **Built-in metrics from spans and logs,** with nothing to configure: request rate, errors, error rate, latency (avg, p50,
+  p95, p99), log volume and error logs per service, ready for dashboards and alerts.
 - **Live Insights:** anomalies and regressions, found automatically.
 - **Ask NebuLens:** an AI assistant that explains what changed and why. Works with Claude, OpenAI or any OpenAI-compatible model,
   and falls back to rule-based analysis with no key.
