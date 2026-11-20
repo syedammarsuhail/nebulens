@@ -1,3 +1,10 @@
+> **v11.5** — chart `0.4.5`. Rebuild the image. Verified end to end on EKS at 1.3M spans: all 121 API calls return in
+>   under a second with no timeouts, and every page was opened in a browser without errors.
+> - Metrics page no longer fails when a built-in metric is selected (it is the first one in the list).
+> - Trace list text search uses the trace-id index or operation names (was 1.5-2 s and growing).
+> - Errors page and log group-by are cached and read the newest 10k rows.
+> - Clusters page reads per-cluster counts from the per-minute rollup.
+>
 > **v11.4** — chart `0.4.4`. Rebuild the image. Fixes every slow page found by a full latency audit on EKS (millions of spans).
 > - **Built-in metrics from spans and logs** (like Dash0): `nebulens.span.requests`, `.errors`, `.error_rate`,
 >   `.duration.avg|p50|p95|p99`, `nebulens.log.records`, `.errors`. In the Metrics explorer, dashboards and alerts; no setup.

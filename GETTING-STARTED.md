@@ -32,8 +32,8 @@ This guide takes you from nothing to a working install with data. It takes about
 Download the newest `nebulens-onprem-v*.tar.gz` from the repository, then:
 
 ```bash
-tar -xzf nebulens-onprem-v11_4.tar.gz
-cd nebulens-v11_4
+tar -xzf nebulens-onprem-v11_5.tar.gz
+cd nebulens-v11_5
 ```
 
 Run every command below from this folder.
@@ -41,8 +41,8 @@ Run every command below from this folder.
 ## 3. Build the image
 
 ```bash
-docker build -t registry.example.com/nebulens:11.4 .
-docker push registry.example.com/nebulens:11.4        # skip if you run on this same machine
+docker build -t registry.example.com/nebulens:11.5 .
+docker push registry.example.com/nebulens:11.5        # skip if you run on this same machine
 ```
 
 No registry (air-gapped)? Save the image to a file and import it on each node: see [ON-PREM.md](ON-PREM.md) section 1.
@@ -70,7 +70,7 @@ TOKEN=<the token from step 4>
 helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml \
   --set image.repository=registry.example.com/nebulens \
-  --set-string image.tag=11.4 --set image.pullPolicy=Always \
+  --set-string image.tag=11.5 --set image.pullPolicy=Always \
   --set persistence.storageClass=local-path \
   --set auth.token=$TOKEN \
   --set collector.traceSamplingPercent=100 \
@@ -89,7 +89,7 @@ agent (here 10 every 5 minutes); everything else stays on eBPF with no restart.
 helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml -f helm/nebulens/values-full.yaml \
   --set image.repository=registry.example.com/nebulens \
-  --set-string image.tag=11.4 --set image.pullPolicy=Always \
+  --set-string image.tag=11.5 --set image.pullPolicy=Always \
   --set persistence.storageClass=local-path \
   --set auth.token=$TOKEN \
   --set-string collector.clusterName=baremetal \
@@ -125,7 +125,7 @@ kubectl -n observability port-forward svc/nebulens 4318:4318      # then http://
 
 ```bash
 cd deploy/vm
-cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.4
+cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.5
 docker compose up -d
 docker compose ps           # both services should be running / healthy
 ```
@@ -181,7 +181,7 @@ and cluster metrics, and the **Kubernetes** page fills, without changing any app
   ```bash
   helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
     -f ./helm/nebulens/values-baremetal.yaml -f ./helm/nebulens/values-full.yaml \
-    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.4 \
+    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.5 \
     --set persistence.storageClass=local-path \
     --set auth.token=$(openssl rand -hex 24) \
     --set "autoInstrumentation.autoInject.namespaces={shop,payments}" \
