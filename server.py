@@ -3172,6 +3172,28 @@ def map_nodes(minutes: float = 60):
 
 
 # ---- traces
+def _trace_text_filter(s, minutes, service, where, args):
+    """Text search in the trace list. It used to test name, attrs (the whole JSON text) and trace_id with a leading-wildcard
+    LIKE on every span in the window (1.5-2 s at 1.3M spans and growing). Now: a hex fragment is a trace-id prefix on the
+    index; key=value searches the attributes; any other word matches operation names known from op_rollup."""
+    if re.fullmatch(r"[0-9a-fA-F]{4,32}", s):
+        where.append("trace_id>=? AND trace_id<?"); args += [s.lower(), s.lower() + "g"]
+        return
+    if "=" in s:
+        where.append("attrs LIKE ?"); args.append(f"%{s.split('=', 1)[1].strip()}%")
+        return
+    names = []
+    if _ops_ready(minutes):
+        sql, a = "SELECT DISTINCT name FROM op_rollup WHERE minute>=? AND name LIKE ?", [since_ns(minutes) // 60_000_000_000, f"%{s}%"]
+        if service:
+            sql += " AND service=?"; a.append(service)
+        names = [r[0] for r in qrows(sql + " LIMIT 200", tuple(a))]
+    if names:
+        where.append("name IN (" + ",".join("?" * len(names)) + ")"); args += names
+    else:   # no known operation matches: fall back to a substring match, but only over the last 15 minutes
+        where.append("start_ns>=? AND name LIKE ?"); args += [since_ns(min(minutes, 15)), f"%{s}%"]
+
+
 @app.get("/api/traces")
 def traces(minutes: float = 60, service: str = "", errors: bool = False, min_ms: float = 0, q_: str = "", limit: int = 100):
     t0 = since_ns(minutes)
@@ -3179,7 +3201,7 @@ def traces(minutes: float = 60, service: str = "", errors: bool = False, min_ms:
     if service:
         where.append("service=?"); args.append(service)
     if q_:
-        where.append("(name LIKE ? OR attrs LIKE ? OR trace_id LIKE ?)"); args += [f"%{q_}%"] * 3
+        _trace_text_filter(q_.strip(), minutes, service, where, args)
     # Candidate traces = those with a span among the newest spans in the window (index scan on start_ns),
     # so listing 50 traces does not aggregate every trace in the window.
     cap = max(limit * 4, 400) if errors else max(limit * 50, 5000)   # error spans are rare: never walk 10k of them
@@ -4363,13 +4385,14 @@ def logs_patterns(minutes: float = 60, service: str = "", min_severity: int = 0,
 
 
 @app.get("/api/errors")
+@ttl_cached
 def errors_list(minutes: float = 60, service: str = "", env: str = "", q_: str = "",
                 sort: str = "count", new_within_hours: float = 0, top: int = 50, buckets: int = 24):
     """Group error-level (ERROR and above) logs by message pattern, with sparkline and first/last seen.
 
     sort = count (default) | last_seen | first_seen | new (groups whose first_seen is within new_within_hours)
     """
-    rows = logs(minutes=minutes, service=service, min_severity=17, q_=q_, limit=20000, env=env)
+    rows = logs(minutes=minutes, service=service, min_severity=17, q_=q_, limit=10000, env=env)   # newest 10k error logs
     if not rows:
         return {"errors": [], "scanned": 0, "distinct": 0, "window_minutes": minutes}
     now_ns = time.time_ns()
@@ -4409,10 +4432,11 @@ def errors_list(minutes: float = 60, service: str = "", env: str = "", q_: str =
 
 
 @app.get("/api/logs/groupby")
+@ttl_cached
 def logs_groupby(field: str, minutes: float = 60, service: str = "", min_severity: int = 0,
                  q_: str = "", env: str = "", top: int = 50, start_ms: float = 0, end_ms: float = 0):
     """Count logs by any attribute, resource attribute or built-in column (service, severity, env)."""
-    rows = logs(minutes=minutes, service=service, min_severity=min_severity, q_=q_, limit=20000, env=env,
+    rows = logs(minutes=minutes, service=service, min_severity=min_severity, q_=q_, limit=10000, env=env,
                 start_ms=start_ms, end_ms=end_ms)
     builtin = {"service": lambda r: r.get("service"), "env": lambda r: r.get("env"),
                "severity": lambda r: r.get("sev_text") or sev_name(r.get("severity") or 0)}

@@ -60,3 +60,19 @@ def test_slow_query_is_stopped_with_503(client, srv, monkeypatch):
     t = time.time()
     r = client.get("/api/operations?service=x", headers=H)
     assert r.status_code == 503 and r.json()["error"] == "query_timeout" and time.time() - t < 10
+
+
+def test_trace_text_search(client, ingest, srv, monkeypatch):
+    svc = "txt-" + secrets.token_hex(3)
+    ingest.span(svc, "app")
+    monkeypatch.setattr(srv, "_ops_ready", lambda m: True)
+    by_name = client.get(f"/api/traces?service={svc}&q_=op&minutes=60", headers=H).json()
+    by_name = by_name if isinstance(by_name, list) else by_name.get("traces", [])
+    assert by_name, "operation name search finds the trace"
+    tid = by_name[0]["trace_id"]
+    by_id = client.get(f"/api/traces?q_={tid[:12]}&minutes=60", headers=H).json()
+    by_id = by_id if isinstance(by_id, list) else by_id.get("traces", [])
+    assert any(t["trace_id"] == tid for t in by_id)
+    none = client.get(f"/api/traces?service={svc}&q_=no-such-operation-xyz&minutes=60", headers=H).json()
+    none = none if isinstance(none, list) else none.get("traces", [])
+    assert none == []
