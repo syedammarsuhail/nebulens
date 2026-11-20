@@ -3327,6 +3327,7 @@ def _k8s_ctx(res, attrs):
 
 
 @app.get("/api/logs/histogram")
+@ttl_cached
 def logs_hist(minutes: float = 60, service: str = "", buckets: int = Query(60, ge=1, le=1000), env: str = "",
               start_ms: float = 0, end_ms: float = 0):
     buckets = max(1, min(int(buckets), 1000))
@@ -4505,6 +4506,7 @@ def logs_export(minutes: float = 60, service: str = "", min_severity: int = 0, q
 
 # ---- log facets (UI sidebar)
 @app.get("/api/logs/facets")
+@ttl_cached
 def logs_facets(minutes: float = 60, service: str = "", q_: str = "", env: str = "", min_severity: int = 0,
                 start_ms: float = 0, end_ms: float = 0, sort: str = ""):
     """Sidebar counts. Each facet is counted with every OTHER filter applied but not its own, so the
@@ -4697,6 +4699,21 @@ def _search_traces(s, like, limit):
     return out
 
 
+@ttl_cached
+def _saturation_rows(minutes: float = 60):
+    """Highest CPU/memory-style metrics of the newest 15 minutes for Ask NebuLens. Cached and kept warm: it reads up to 12
+    metric names through the (name, ts_ns) index (1.6 s on a cold cache at 9M spans)."""
+    names = [r[0] for r in qrows("SELECT DISTINCT name FROM metric_names_seen WHERE hr>=? AND (name LIKE '%cpu%' OR "
+                                 "name LIKE '%memory%' OR name LIKE '%utiliz%' OR name LIKE '%usage%') LIMIT 12",
+                                 (since_ns(minutes) // 3_600_000_000_000,))]
+    t0m = since_ns(min(minutes, 15))
+    rows = []
+    for nm in names:
+        rows += q("SELECT service, name, MAX(value) mx, AVG(value) av FROM metrics WHERE name=? AND ts_ns>=? GROUP BY service, name",
+                  (nm, t0m))
+    return sorted(rows, key=lambda r: -(r["mx"] or 0))[:8]
+
+
 def _home_log_totals(minutes, t0):
     if _env_ready(minutes):
         n, e = qrows("SELECT SUM(logs), SUM(log_err) FROM env_rollup WHERE minute>=?", (t0 // 60_000_000_000,))[0]
@@ -4728,15 +4745,7 @@ def investigate(q_: str = "", minutes: float = 60):
     elif any(k in text for k in ("saturat", "cpu", "memory", "mem ", "disk", "resource")):
         intent, title = "saturation", "Resource saturation"
         # Names from the registry first, then each through the (name, ts_ns) index (was: GROUP BY over every metric point).
-        names = [r[0] for r in qrows("SELECT DISTINCT name FROM metric_names_seen WHERE hr>=? AND (name LIKE '%cpu%' OR "
-                                     "name LIKE '%memory%' OR name LIKE '%utiliz%' OR name LIKE '%usage%') LIMIT 12",
-                                     (since_ns(minutes) // 3_600_000_000_000,))]
-        t0m = since_ns(min(minutes, 15))
-        rows = []
-        for nm in names:
-            rows += q("SELECT service, name, MAX(value) mx, AVG(value) av FROM metrics WHERE name=? AND ts_ns>=? GROUP BY service, name",
-                      (nm, t0m))
-        rows = sorted(rows, key=lambda r: -(r["mx"] or 0))[:8]
+        rows = _saturation_rows(minutes)
         for r in rows:
             findings.append({"label": f"{r['service']} · {r['name']}", "value": f"max {r['mx']:.3g} · avg {r['av']:.3g}",
                              "severity": "info", "link": f"#/metrics?name={r['name']}&service={r['service']}"})
@@ -6317,6 +6326,8 @@ def cache_warmer():
             try:
                 for m in (15, 60, 1440):     # 24 h too: demos widen the range, and the first wide request paid 1-3 s
                     services.refresh(float(m)); insights.refresh(float(m)); home.refresh(float(m), 60); service_map.refresh(float(m))
+                    logs_hist.refresh(float(m)); logs_facets.refresh(float(m))   # the Logs page's two counting calls
+                _saturation_rows.refresh(60.0)
             except Exception as e:
                 print("cache warmer error:", e)
             finally:

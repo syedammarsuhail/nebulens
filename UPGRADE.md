@@ -1,3 +1,7 @@
+> **v11.7** — chart `0.4.7`. Rebuild the image. The two minor items from the v11.6 end-to-end QA:
+> - Logs page: the chart and sidebar counts are cached and kept warm (first load was ~5 s at 255k logs).
+> - Ask NebuLens "any resource saturation?" is cached and kept warm (1.6 s on a cold cache).
+>
 > **v11.6** — chart `0.4.6`. Rebuild the image. The four issues from the end-to-end QA sign-off of v11.5:
 > - A service's Metrics tab shows its built-in metrics (requests, error rate, p95, error logs) even when the service only
 >   sends traces (it looked empty).
