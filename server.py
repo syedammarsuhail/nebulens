@@ -2647,6 +2647,11 @@ async def no_cache_ui(request: Request, call_next):
     return resp
 
 
+from starlette.requests import ClientDisconnect
+from starlette.responses import Response
+_ingest_disconnects = [0]   # senders that hung up mid-upload (see _otlp); shown in /api/stats
+
+
 def _db_busy(e):
     """A transient database error (deadlock, lock timeout, dropped connection): worth retrying, not the sender's fault."""
     n = type(e).__name__
@@ -2656,7 +2661,13 @@ def _db_busy(e):
 
 
 async def _otlp(request: Request, name, mod, fn):
-    raw = await request.body()
+    try:
+        raw = await request.body()
+    except ClientDisconnect:
+        # The sender gave up mid-upload (usually its own timeout while the server is saturated). Nothing was stored and
+        # its exporter will retry; this is not a server error, so do not log a stack trace for it.
+        _ingest_disconnects[0] += 1
+        return Response(status_code=400)
     ctype = request.headers.get("content-type", "")
     if request.headers.get("content-encoding") == "gzip":
         import gzip
@@ -2746,6 +2757,7 @@ def stats():
         "metrics": _approx_rows("metrics"),
         "services": q("SELECT COUNT(DISTINCT service) n FROM resource_seen WHERE sig='spans'")[0]["n"],
         "approximate": True,
+        "ingest_disconnects": _ingest_disconnects[0],
         "alert_rules": q("SELECT COUNT(*) n FROM alert_rules")[0]["n"],
         "synthetics": q("SELECT COUNT(*) n FROM synthetics")[0]["n"],
         "retention_hours": RETENTION_HOURS,

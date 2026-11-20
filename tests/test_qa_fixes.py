@@ -93,3 +93,18 @@ def test_deleting_alert_removes_its_events(client, srv):
     assert client.delete(f"/api/alerts/{rid}", headers=H).status_code == 200
     left = srv.q("SELECT COUNT(*) n FROM alert_events WHERE rule_id IN (?, 999999)", (rid,))[0]["n"]
     assert left == 0
+
+
+def test_sender_disconnect_is_not_a_server_error(srv):
+    import asyncio
+    from starlette.requests import ClientDisconnect
+
+    class Gone:
+        headers = {}
+        state = type("S", (), {})()
+
+        async def body(self):
+            raise ClientDisconnect()
+    before = srv._ingest_disconnects[0]
+    r = asyncio.run(srv._otlp(Gone(), "x", "y", lambda d: 0))
+    assert r.status_code == 400 and srv._ingest_disconnects[0] == before + 1
