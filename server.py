@@ -621,13 +621,24 @@ _last_use = [0.0]
 _warming = threading.local()
 
 
+def _plain_args(sig, a, kw):
+    """Bind a call to its signature with defaults applied, replacing FastAPI Query(...) defaults by their real value:
+    outside a request FastAPI never resolves them, so a direct call (the cache warmer) would pass a Query object."""
+    from fastapi.params import Param
+    b = sig.bind(*a, **kw); b.apply_defaults()
+    for k, v in list(b.arguments.items()):
+        if isinstance(v, Param):
+            b.arguments[k] = v.default
+    return b
+
+
 def ttl_cached(fn):
     import functools, inspect
     sig = inspect.signature(fn)
     cache, locks = {}, {}
 
     def key_of(a, kw):
-        b = sig.bind(*a, **kw); b.apply_defaults()
+        b = _plain_args(sig, a, kw)
         # The caller's environment scope is part of the key: without it a restricted user could be
         # served another user's cached, wider result (or vice versa).
         envs = _cur_envs.get()
@@ -635,6 +646,8 @@ def ttl_cached(fn):
 
     @functools.wraps(fn)
     def wrapper(*a, **kw):
+        bound = _plain_args(sig, a, kw)       # real values even for a direct call that left a Query(...) default
+        a, kw = bound.args, bound.kwargs
         if CACHE_TTL <= 0:
             return fn(*a, **kw)
         if not getattr(_warming, "on", False):
@@ -655,8 +668,9 @@ def ttl_cached(fn):
 
     def refresh(*a, **kw):
         k = key_of(a, kw)
+        b = _plain_args(sig, a, kw)
         with locks.setdefault(k, threading.Lock()):
-            cache[k] = (time.time(), fn(*a, **kw))
+            cache[k] = (time.time(), fn(*b.args, **b.kwargs))
 
     wrapper.refresh = refresh
     return wrapper
@@ -4535,7 +4549,7 @@ def logs_facets(minutes: float = 60, service: str = "", q_: str = "", env: str =
         # err = ERROR/FATAL records, so the sidebar can rank the services that are actually in trouble.
         "service": q(f"""SELECT service value, COUNT(*) n, SUM(CASE WHEN severity>=17 THEN 1 ELSE 0 END) err
                          FROM logs WHERE {' AND '.join(w_svc)} GROUP BY service
-                         ORDER BY {'err DESC, n DESC' if sort == 'errors' else 'n DESC'} LIMIT 40""", a_svc),
+                         ORDER BY {'err DESC, n DESC' if sort == 'errors' else 'n DESC'} LIMIT 500""", a_svc),
         "severity": q(f"""SELECT CASE WHEN severity>=21 THEN 'FATAL' WHEN severity>=17 THEN 'ERROR' WHEN severity>=13 THEN 'WARN'
                           WHEN severity>=9 THEN 'INFO' WHEN severity>=5 THEN 'DEBUG' WHEN severity>=1 THEN 'TRACE' ELSE 'UNSET' END value, COUNT(*) n
                           FROM logs WHERE {' AND '.join(w_sev)} GROUP BY value ORDER BY n DESC""", a_sev),
@@ -4690,12 +4704,15 @@ def _search_traces(s, like, limit):
         lo = s.lower()
         return q("SELECT trace_id, name, service, dur_ms FROM spans WHERE trace_id>=? AND trace_id<? AND parent_id='' LIMIT ?",
                  (lo, lo + "g", limit))
-    out = []
+    out, seen = [], set()
     for svc, nm, m in qrows("SELECT service, name, MAX(minute) FROM op_rollup WHERE minute>=? AND name LIKE ? "
                             "GROUP BY service, name ORDER BY MAX(minute) DESC LIMIT ?",
                             (since_ns(24 * 60) // 60_000_000_000, like, limit)):
-        out += q("SELECT trace_id, name, service, dur_ms FROM spans WHERE service=? AND start_ns>=? AND start_ns<? AND name=? LIMIT 1",
-                 (svc, int(m) * 60_000_000_000, (int(m) + 1) * 60_000_000_000, nm))
+        for r in q("SELECT trace_id, name, service, dur_ms FROM spans WHERE service=? AND start_ns>=? AND start_ns<? AND name=? "
+                   "ORDER BY CASE WHEN parent_id='' THEN 0 ELSE 1 END LIMIT 1",
+                   (svc, int(m) * 60_000_000_000, (int(m) + 1) * 60_000_000_000, nm)):
+            if r["trace_id"] not in seen:          # the same trace can match through several operations
+                seen.add(r["trace_id"]); out.append(r)
     return out
 
 
@@ -4709,7 +4726,8 @@ def _saturation_rows(minutes: float = 60):
     t0m = since_ns(min(minutes, 15))
     rows = []
     for nm in names:
-        rows += q("SELECT service, name, MAX(value) mx, AVG(value) av FROM metrics WHERE name=? AND ts_ns>=? GROUP BY service, name",
+        rows += q("SELECT CASE WHEN service IN ('', 'unknown') THEN COALESCE(json_extract(res, '$.\"k8s.pod.name\"'), service) "
+                  "ELSE service END service, name, MAX(value) mx, AVG(value) av FROM metrics WHERE name=? AND ts_ns>=? GROUP BY 1, name",
                   (nm, t0m))
     return sorted(rows, key=lambda r: -(r["mx"] or 0))[:8]
 
@@ -6315,6 +6333,17 @@ def worker():
         time.sleep(5)
 
 
+def _warm_jobs():
+    """The heavy views kept warm, each with the exact arguments the UI sends (the cache key includes every argument)."""
+    jobs = []
+    for m in (15.0, 60.0, 1440.0):     # 24 h too: demos widen the range, and the first wide request paid 1-3 s
+        jobs += [lambda m=m: services.refresh(m), lambda m=m: insights.refresh(m), lambda m=m: home.refresh(m, 60),
+                 lambda m=m: service_map.refresh(m), lambda m=m: logs_hist.refresh(m, "", 60),
+                 lambda m=m: logs_facets.refresh(m, sort="errors"), lambda m=m: logs_facets.refresh(m)]
+    jobs.append(lambda: _saturation_rows.refresh(60.0))
+    return jobs
+
+
 def cache_warmer():
     """Self-hosted only: while someone has used the dashboards in the last 5 minutes, keep the heavy aggregates warm
     so page loads are instant. Idle instances do no extra work. Starts warm so the first visit after a restart is fast."""
@@ -6324,12 +6353,11 @@ def cache_warmer():
         if CACHE_TTL > 0 and time.time() - _last_use[0] < 300:
             t = time.time(); _warming.on = True
             try:
-                for m in (15, 60, 1440):     # 24 h too: demos widen the range, and the first wide request paid 1-3 s
-                    services.refresh(float(m)); insights.refresh(float(m)); home.refresh(float(m), 60); service_map.refresh(float(m))
-                    logs_hist.refresh(float(m)); logs_facets.refresh(float(m))   # the Logs page's two counting calls
-                _saturation_rows.refresh(60.0)
-            except Exception as e:
-                print("cache warmer error:", e)
+                for job in _warm_jobs():
+                    try:
+                        job()
+                    except Exception as e:   # one failing view must not stop the others from being warmed
+                        print("cache warmer error:", getattr(job, "__name__", job), e, flush=True)
             finally:
                 _warming.on = False
             busy = time.time() - t

@@ -140,6 +140,10 @@ for label, path in (
     ("mode", "/api/mode"),
 ):
     st, _ = call("GET", path)
+    end = time.time() + 60
+    while st == 503 and time.time() < end:   # right after a restart a cold aggregate can hit the query limit; it recovers
+        time.sleep(5)
+        st, _ = call("GET", path)
     check(label, st == 200, f"{path} -> {st}")
 
 st, _ = call("GET", f"/api/services/{SVC}/timeseries?buckets=0")

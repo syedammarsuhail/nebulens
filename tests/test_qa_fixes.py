@@ -108,3 +108,20 @@ def test_sender_disconnect_is_not_a_server_error(srv):
     before = srv._ingest_disconnects[0]
     r = asyncio.run(srv._otlp(Gone(), "x", "y", lambda d: 0))
     assert r.status_code == 400 and srv._ingest_disconnects[0] == before + 1
+
+
+def test_every_warmer_job_runs(srv, ingest):
+    # v11.7 shipped a warmer that crashed on every cycle (a Query(...) default reached int()); run each job for real
+    ingest.span("warm-" + secrets.token_hex(3), "app")
+    ingest.logs("warm-" + secrets.token_hex(3), "app", "warm", sev=17)
+    for job in srv._warm_jobs():
+        job()
+    assert srv.logs_hist(60.0)[0]["n"] >= 0 and srv.home(60.0)["totals"] is not None   # direct calls resolve Query defaults
+
+
+def test_search_lists_each_trace_once(client, ingest, srv, monkeypatch):
+    ingest.span("dedup-" + secrets.token_hex(3), "app")
+    monkeypatch.setattr(srv, "_ops_ready", lambda m: True)
+    tr = client.get("/api/search?q_=op", headers=H).json()["traces"]
+    ids = [t["trace_id"] for t in tr]
+    assert len(ids) == len(set(ids))

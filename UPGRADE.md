@@ -1,6 +1,11 @@
 > **v11.7** — chart `0.4.7`. Rebuild the image. The two minor items from the v11.6 end-to-end QA:
 > - Logs page: the chart and sidebar counts are cached and kept warm (first load was ~5 s at 255k logs).
 > - Ask NebuLens "any resource saturation?" is cached and kept warm (1.6 s on a cold cache).
+> - The cache warmer resolves every argument and warms each view on its own (one failing view can no longer stop the
+>   others); it warms the exact request the Logs page sends. A test runs every warmer job.
+> - The Logs sidebar lists up to 500 services (was 40). Search lists each trace once, root span first.
+> - The saturation answer names the pod for Kubernetes container metrics (was "unknown").
+> - smoke.py retries the aggregate views for up to 60 s after a restart while caches warm.
 >
 > **v11.6** — chart `0.4.6`. Rebuild the image. The four issues from the end-to-end QA sign-off of v11.5:
 > - A service's Metrics tab shows its built-in metrics (requests, error rate, p95, error logs) even when the service only
