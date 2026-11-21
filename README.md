@@ -3,7 +3,7 @@
 **A clear lens on your microservices.** Self-hosted, OpenTelemetry-native observability: traces, logs and metrics
 from every service, shown as live signals so you see traffic waves, latency spikes and error bursts the moment they happen.
 
-**Website:** https://syedammarsuhail.github.io/nebulens/ ([developers](https://syedammarsuhail.github.io/nebulens/developers.html) · [enterprise](https://syedammarsuhail.github.io/nebulens/enterprise.html) · [product tour](https://syedammarsuhail.github.io/nebulens/tour.html) · [AI](https://syedammarsuhail.github.io/nebulens/ai.html))
+**Website:** https://nebulens.ai/ ([developers](https://nebulens.ai/developers.html) · [enterprise](https://nebulens.ai/enterprise.html) · [product tour](https://nebulens.ai/tour.html) · [AI](https://nebulens.ai/ai.html))
 
 One OTLP endpoint (`:4318`), one web UI, your own infrastructure. No per-host or per-GB pricing, and your telemetry never leaves
 your network.
@@ -60,7 +60,7 @@ python scripts/smoke.py http://<host>:4318 --token <your token>
 
 Community is free to self-host on one cluster of up to 5 nodes, with the full product: traces, logs, metrics, the service map,
 eBPF tracing, built-in metrics and Live Insights. Pro adds unlimited nodes and retention, SSO with roles and unlimited AI answers;
-Enterprise adds per-environment access, SIEM audit export and air-gapped support. See the [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html).
+Enterprise adds per-environment access, SIEM audit export and air-gapped support. See the [pricing page](https://nebulens.ai/pricing.html).
 
 ## Security
 

@@ -75,7 +75,7 @@
   class AuthError extends Error { }
   class TierError extends Error { constructor(j) { super(j.message); this.detail = j; } }
 
-  const PRICING = "https://syedammarsuhail.github.io/nebulens/pricing.html";
+  const PRICING = "https://nebulens.ai/pricing.html";
   function upgradeModal(detail) {
     const feat = detail.feature || detail.message || "This feature";
     const limit = detail.limit;
