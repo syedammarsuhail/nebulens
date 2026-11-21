@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NebuLens Compared</title>
-<meta name="description" content="How NebuLens compares with SigNoz, ClickStack and the Grafana stack for self-hosted, OpenTelemetry-native observability: architecture, pricing, and when each is the better choice.">
+<meta name="description" content="How NebuLens compares with Coroot, OpenObserve, SigNoz, ClickStack and the Grafana stack for self-hosted, OpenTelemetry-native observability: architecture, pricing, and when each is the better choice.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -99,28 +99,27 @@ header .wrap p{max-width:44em}
 
 <section id="table"><div class="wrap">
   <h2>At a glance</h2>
-  <p class="sub">Architecture and pricing as published by each project, checked on 21 November 2026. Prices change; follow the links for current figures.</p>
+  <p class="sub">What each self-hosted option asks you to run and pay, from each project's own pages, checked on 21 November 2026. Prices change; follow the links.</p>
   <div class="tbl-wrap"><table>
-    <thead><tr><th></th><th>NebuLens</th><th>SigNoz</th><th>ClickStack (HyperDX)</th><th>Grafana LGTM</th></tr></thead>
+    <thead><tr><th>Tool</th><th>Storage you operate</th><th>Privileged agent on every node</th><th>Free self-hosted</th><th>Paid from</th><th>Fits best when</th></tr></thead>
     <tbody>
-      <tr><td>Storage you operate</td><td class="y">SQLite or Postgres</td><td>ClickHouse</td><td>ClickHouse</td><td>Loki, Tempo and Mimir, plus object storage</td></tr>
-      <tr><td>Services to run for a small install</td><td class="y">1 server + the OpenTelemetry Collector</td><td>Several (app, ClickHouse, collector)</td><td>Several (UI, ClickHouse, collector)</td><td>4 or more (Grafana, Loki, Tempo, Mimir)</td></tr>
-      <tr><td>OpenTelemetry-native</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
-      <tr><td>eBPF tracing without restarting pods</td><td class="y">Included (Helm switch)</td><td>Add separately</td><td>Add separately</td><td>Grafana Beyla, added separately</td></tr>
-      <tr><td>Free self-hosted edition</td><td class="y">Yes, up to 5 nodes</td><td class="y">Yes, no node limit</td><td class="y">Yes</td><td class="y">Yes</td></tr>
-      <tr><td>Paid self-hosted support starts at</td><td class="y">$99 / month (Pro, billed annually)</td><td>$4,000 / month (Enterprise, includes cloud usage or self-hosted support)<sup>1</sup></td><td>Contact sales</td><td>Contact sales (Grafana Enterprise)</td></tr>
-      <tr><td>Very high data volume</td><td class="n">Up to about 2,000 spans/s per instance</td><td class="y">Built for it</td><td class="y">Built for it</td><td class="y">Built for it</td></tr>
+      <tr><td><b>NebuLens</b></td><td class="y">SQLite or Postgres</td><td class="y">No (eBPF is optional)</td><td>Up to 5 nodes</td><td>$99 / month (Pro, 5 nodes included)</td><td>Regulated teams up to ~25 nodes with no one to run a database cluster</td></tr>
+      <tr><td><a href="https://docs.coroot.com/installation/architecture">Coroot</a></td><td>ClickHouse (logs, traces, profiles) and Prometheus (metrics)<sup>1</sup></td><td>Yes: the node agent "requires privileged access"<sup>2</sup></td><td class="y">Community edition, no node limit</td><td class="y">$1 per CPU core / month, SSO and RBAC included<sup>3</sup></td><td>eBPF-first teams comfortable running ClickHouse</td></tr>
+      <tr><td><a href="https://openobserve.ai/pricing">OpenObserve</a></td><td>Its own engine, no separate database</td><td>No (uses OpenTelemetry)</td><td class="y">AGPL-3.0 core; Enterprise free up to 50 GB/day with SSO, RBAC and audit trail<sup>4</sup></td><td>Contact sales above 50 GB/day</td><td>Log-heavy teams that want a free single server</td></tr>
+      <tr><td><a href="https://signoz.io/pricing/">SigNoz</a></td><td>ClickHouse</td><td>No</td><td class="y">Yes, no node limit</td><td>$4,000 / month (Enterprise)<sup>5</sup></td><td>Larger teams with ClickHouse skills</td></tr>
+      <tr><td>ClickStack (HyperDX)</td><td>ClickHouse</td><td>No</td><td class="y">Yes</td><td>Contact sales</td><td>Teams already on ClickHouse</td></tr>
+      <tr><td>Grafana LGTM</td><td>Loki, Tempo and Mimir, plus object storage</td><td>Only with Beyla (optional)</td><td class="y">Yes (AGPL-3.0)</td><td>Contact sales (Grafana Enterprise)</td><td>Teams already running Grafana well</td></tr>
     </tbody>
   </table></div>
-  <p class="note-src"><sup>1</sup> <a href="https://signoz.io/pricing/">signoz.io/pricing</a>: Enterprise "starts at $4000/month" and lists dedicated cloud, BYOC and "Self-Hosted SigNoz: enterprise support". Checked 21 Nov 2026.</p>
+  <p class="note-src">1 <a href="https://docs.coroot.com/installation/architecture">docs.coroot.com/installation/architecture</a>: "Coroot uses Prometheus for storing metrics" and "ClickHouse for storing logs, traces, profiles". 2 <a href="https://docs.coroot.com/installation/kubernetes">docs.coroot.com/installation/kubernetes</a>: "requires privileged access for eBPF monitoring, host filesystem access, and container inspection". 3 <a href="https://coroot.com/pricing">coroot.com/pricing</a>: Standard "$1 per monitored CPU core/month", SSO and RBAC listed. 4 <a href="https://openobserve.ai/pricing">openobserve.ai/pricing</a>: "free for up to 50 GB of ingestion per day". 5 <a href="https://signoz.io/pricing/">signoz.io/pricing</a>: Enterprise "starts at $4000/month". All checked 21 Nov 2026.</p>
 </div></section>
 
 <section id="why"><div class="wrap">
   <h2>Why teams pick NebuLens</h2>
   <div class="plans">
-    <div class="plan"><h3>Nothing new to operate</h3><p>If you already run Postgres, you already know how to back up, size and secure NebuLens. There is no ClickHouse, Kafka or ZooKeeper to learn.</p></div>
+    <div class="plan"><h3>Nothing new to operate</h3><p>Postgres is a database your team already knows how to back up, size, encrypt and get through an audit. There is no ClickHouse, Kafka or ZooKeeper to learn. Give NebuLens its own Postgres database or instance, not your application's production one.</p></div>
     <div class="plan"><h3>Up in minutes</h3><p>One Helm chart deploys the server, the collector and eBPF tracing. Existing OpenTelemetry apps only change their exporter endpoint.</p></div>
-    <div class="plan"><h3>Paid support you can afford</h3><p>Pro is priced per node from $99 a month, with SSO, roles and an audit log. You do not need an enterprise contract to get a supported self-hosted install.</p></div>
+    <div class="plan"><h3>Passes security review faster</h3><p>The default install is the standard OpenTelemetry Collector and one server, with no privileged agent on your nodes. eBPF tracing is a switch you turn on only if you want it. Licences are checked offline, so it runs air-gapped.</p></div>
   </div>
 </div></section>
 
@@ -128,9 +127,10 @@ header .wrap p{max-width:44em}
   <h2>When another tool is the better choice</h2>
   <p class="sub">We would rather you pick the right tool than switch twice.</p>
   <ul class="honest">
-    <li><b>You ingest far more than a few thousand spans per second.</b> ClickHouse-based tools scale further on one installation.</li>
+    <li><b>You ingest far more than a few thousand spans per second.</b> ClickHouse-based tools such as Coroot, SigNoz and ClickStack scale further on one installation.</li>
+    <li><b>You want the deepest eBPF view at the lowest price and can run ClickHouse.</b> Coroot is free with no node limit and $1 per CPU core with SSO and RBAC.</li>
+    <li><b>You are log-heavy and under 50 GB a day.</b> OpenObserve's self-hosted Enterprise edition is free at that size and includes SSO and an audit trail.</li>
     <li><b>You want a hosted service.</b> SigNoz Cloud, ClickHouse Cloud and Grafana Cloud run it for you; NebuLens is self-hosted only.</li>
-    <li><b>You need continuous profiling today.</b> Grafana Pyroscope offers it; NebuLens does not yet.</li>
     <li><b>You already run the Grafana stack well.</b> Keep it; the cost of switching is real.</li>
   </ul>
 </div></section>
@@ -146,7 +146,7 @@ service:
     traces:
       exporters: [otlphttp/current, otlphttp/nebulens]</pre>
   <p class="sub" style="margin-top:14px"><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install guide</a> · <a href="pricing.html">Pricing</a></p>
-  <p class="note-src">SigNoz, ClickStack, ClickHouse, HyperDX, Grafana, Loki, Tempo, Mimir, Beyla and Pyroscope are trademarks of their owners. NebuLens is not affiliated with or endorsed by them.</p>
+  <p class="note-src">Coroot, OpenObserve, SigNoz, ClickStack, ClickHouse, HyperDX, Grafana, Loki, Tempo, Mimir and Beyla are trademarks of their owners. NebuLens is not affiliated with or endorsed by them.</p>
 </div></section>
 
 <footer><div class="wrap"><span>NebuLens · self-hosted, OpenTelemetry-native observability</span><span>Sales: <a href="mailto:sales@nebulens.dev">sales@nebulens.dev</a> · <a href="index.html">Home</a> · <a href="https://github.com/syedammarsuhail/nebulens">GitHub</a> · <a href="https://github.com/syedammarsuhail/nebulens/blob/main/LICENSE">License</a></span></div></footer>
