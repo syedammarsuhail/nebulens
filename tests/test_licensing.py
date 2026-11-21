@@ -87,3 +87,19 @@ def test_limit_message_uses_readable_names(client, srv, monkeypatch):
     monkeypatch.setitem(srv.TIER_LIMITS, "max_slos", 0)
     r = client.post("/api/slos", headers=AUTH, json={"name": "x", "service": "a", "objective_pct": 99.0, "latency_ms": 300})
     assert r.status_code == 403 and "3 slos" not in r.json()["message"] and "SLOs" in r.json()["message"]
+
+
+def test_sso_sessions_stop_working_when_not_pro(srv, monkeypatch):
+    # a session cookie issued during the Pro trial must not keep working on Community; the token still does
+    from starlette.requests import Request
+    monkeypatch.setitem(srv.OIDC, "issuer", "https://idp.test")
+    monkeypatch.setitem(srv.OIDC, "client_id", "nebulens")
+    cookie = srv._sign({"sub": "u1", "email": "a@b.test", "role": "editor", "exp": int(srv.time.time()) + 3600})
+    req = Request({"type": "http", "headers": [(b"cookie", f"nl_session={cookie}".encode())]})
+    monkeypatch.setattr(srv, "IS_PRO", True)
+    assert srv._identify(req)["via"] == "session"
+    monkeypatch.setattr(srv, "IS_PRO", False)
+    assert srv._identify(req) is None                         # login required, SSO not accepted
+    tok = Request({"type": "http", "headers": [(b"authorization", f"Bearer {srv.AUTH_TOKEN}".encode())]})
+    if srv.AUTH_TOKEN:
+        assert srv._identify(tok)["via"] == "token"

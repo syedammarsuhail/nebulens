@@ -2593,7 +2593,7 @@ def _identify(request):
             return dict(actor="api-token", role="admin", via="token")
         if _tok_eq(t, READ_TOKEN):
             return dict(actor="read-token", role="viewer", via="token")
-    if sso_enabled():
+    if sso_enabled() and IS_PRO:      # SSO is Pro: after a trial ends, sessions from it stop working (the token still does)
         sess = _unsign(request.cookies.get("nl_session", ""))
         if sess and sess.get("role") in ROLE_RANK:
             return dict(actor=sess.get("email") or sess.get("sub", "?"), name=sess.get("name", ""), role=sess["role"],
