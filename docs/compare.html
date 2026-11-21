@@ -103,9 +103,9 @@ header .wrap p{max-width:44em}
   <div class="tbl-wrap"><table>
     <thead><tr><th>Tool</th><th>Storage you operate</th><th>Privileged agent on every node</th><th>Free self-hosted</th><th>Paid from</th><th>Fits best when</th></tr></thead>
     <tbody>
-      <tr><td><b>NebuLens</b></td><td class="y">SQLite or Postgres</td><td class="y">No (eBPF is optional)</td><td>Up to 5 nodes</td><td>$99 / month (Pro, 5 nodes included)</td><td>Regulated teams up to ~25 nodes with no one to run a database cluster</td></tr>
-      <tr><td><a href="https://docs.coroot.com/installation/architecture">Coroot</a></td><td>ClickHouse (logs, traces, profiles) and Prometheus (metrics)<sup>1</sup></td><td>Yes: the node agent "requires privileged access"<sup>2</sup></td><td class="y">Community edition, no node limit</td><td class="y">$1 per CPU core / month, SSO and RBAC included<sup>3</sup></td><td>eBPF-first teams comfortable running ClickHouse</td></tr>
-      <tr><td><a href="https://openobserve.ai/pricing">OpenObserve</a></td><td>Its own engine, no separate database</td><td>No (uses OpenTelemetry)</td><td class="y">AGPL-3.0 core; Enterprise free up to 50 GB/day with SSO, RBAC and audit trail<sup>4</sup></td><td>Contact sales above 50 GB/day</td><td>Log-heavy teams that want a free single server</td></tr>
+      <tr><td><b>NebuLens</b></td><td class="y">SQLite or Postgres</td><td class="y">No (eBPF is optional)</td><td>Up to 5 nodes</td><td>$99 / month (Pro, 5 nodes included, then $12 per node; $129 / month billed monthly)</td><td>Regulated teams up to ~25 nodes with no one to run a database cluster</td></tr>
+      <tr><td><a href="https://docs.coroot.com/installation/architecture">Coroot</a></td><td>ClickHouse for logs, traces and profiles; Prometheus or ClickHouse for metrics<sup>1</sup></td><td>Yes: the node agent "requires privileged access"<sup>2</sup></td><td class="y">Community edition, no node limit</td><td class="y">$1 per CPU core / month, SSO and RBAC included<sup>3</sup></td><td>eBPF-first teams comfortable running ClickHouse</td></tr>
+      <tr><td><a href="https://openobserve.ai/pricing">OpenObserve</a></td><td>Its own engine, storing data on local disk or object storage (S3)</td><td>No (uses OpenTelemetry)</td><td class="y">AGPL-3.0 core; Enterprise free up to 50 GB/day with SSO, RBAC and audit trail<sup>4</sup></td><td>Contact sales above 50 GB/day</td><td>Log-heavy teams that want a free single server</td></tr>
       <tr><td><a href="https://signoz.io/pricing/">SigNoz</a></td><td>ClickHouse</td><td>No</td><td class="y">Yes, no node limit</td><td>$4,000 / month (Enterprise)<sup>5</sup></td><td>Larger teams with ClickHouse skills</td></tr>
       <tr><td>ClickStack (HyperDX)</td><td>ClickHouse</td><td>No</td><td class="y">Yes</td><td>Contact sales</td><td>Teams already on ClickHouse</td></tr>
       <tr><td>Grafana LGTM</td><td>Loki, Tempo and Mimir, plus object storage</td><td>Only with Beyla (optional)</td><td class="y">Yes (AGPL-3.0)</td><td>Contact sales (Grafana Enterprise)</td><td>Teams already running Grafana well</td></tr>
@@ -118,8 +118,8 @@ header .wrap p{max-width:44em}
   <h2>Why teams pick NebuLens</h2>
   <div class="plans">
     <div class="plan"><h3>Nothing new to operate</h3><p>Postgres is a database your team already knows how to back up, size, encrypt and get through an audit. There is no ClickHouse, Kafka or ZooKeeper to learn. Give NebuLens its own Postgres database or instance, not your application's production one.</p></div>
-    <div class="plan"><h3>Up in minutes</h3><p>One Helm chart deploys the server, the collector and eBPF tracing. Existing OpenTelemetry apps only change their exporter endpoint.</p></div>
-    <div class="plan"><h3>Passes security review faster</h3><p>The default install is the standard OpenTelemetry Collector and one server, with no privileged agent on your nodes. eBPF tracing is a switch you turn on only if you want it. Licences are checked offline, so it runs air-gapped.</p></div>
+    <div class="plan"><h3>Up in about 20 minutes</h3><p>One Helm chart deploys the server, the collector and eBPF tracing. Existing OpenTelemetry apps only change their exporter endpoint.</p></div>
+    <div class="plan"><h3>No privileged agent by default</h3><p>The default install is the standard OpenTelemetry Collector and one server, with no privileged agent on your nodes. eBPF tracing is a switch you turn on only if you want it. Licences are checked offline, so it runs air-gapped.</p></div>
   </div>
 </div></section>
 
@@ -130,6 +130,7 @@ header .wrap p{max-width:44em}
     <li><b>You ingest far more than a few thousand spans per second.</b> ClickHouse-based tools such as Coroot, SigNoz and ClickStack scale further on one installation.</li>
     <li><b>You want the deepest eBPF view at the lowest price and can run ClickHouse.</b> Coroot is free with no node limit and $1 per CPU core with SSO and RBAC.</li>
     <li><b>You are log-heavy and under 50 GB a day.</b> OpenObserve's self-hosted Enterprise edition is free at that size and includes SSO and an audit trail.</li>
+    <li><b>You need a vendor with a SOC 2 Type II report or a signed BAA today.</b> NebuLens runs entirely inside your network and never receives your data, but it does not yet hold those certifications.</li>
     <li><b>You want a hosted service.</b> SigNoz Cloud, ClickHouse Cloud and Grafana Cloud run it for you; NebuLens is self-hosted only.</li>
     <li><b>You already run the Grafana stack well.</b> Keep it; the cost of switching is real.</li>
   </ul>

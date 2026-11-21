@@ -229,7 +229,7 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
     <div>
       <span class="eyebrow">For regulated teams · Self-hosted · OpenTelemetry-native</span>
       <h1>Observability that stays <em>inside your network.</em></h1>
-      <p class="lede">Traces, logs, metrics and a live service map for teams of up to 25 nodes in healthcare, finance and government. It runs on Postgres, a database you already know how to secure and back up: no ClickHouse cluster to operate, nothing sent to a SaaS vendor, and it works air-gapped.</p>
+      <p class="lede">Traces, logs, metrics and a live service map built for teams in healthcare, finance and government running up to about 25 nodes. It runs on Postgres, a database you already know how to secure and back up: no ClickHouse cluster to operate, nothing sent to a SaaS vendor, and it works air-gapped.</p>
       <div class="cta">
         <a class="btn primary" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install in 20 minutes
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
@@ -335,7 +335,7 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
       <div class="stage"><span class="n">01 · instrument</span><h3>Your services</h3><p>Turn on eBPF tracing and every app in the cluster is traced with no code change and no restart. Or use any OpenTelemetry SDK.</p><div class="langs"><span>Java</span><span>.NET</span><span>Python</span><span>Node.js</span><span>Go</span><span>Browser</span></div></div>
       <div class="stage"><span class="n">02 · collect</span><h3>OTel Collector</h3><p>The Helm chart deploys collectors for host, kubelet and cluster metrics and container logs.</p></div>
       <div class="stage core"><span class="n">03 · analyse</span><h3>NebuLens</h3><p>One OTLP endpoint receives everything: <code>http://nebulens:4318</code>. Summaries are pre-computed every minute, so pages stay fast.</p></div>
-      <div class="stage"><span class="n">04 · store</span><h3>Your database</h3><p>SQLite on a local disk for a single node, or your own Postgres. Retention is yours to set.</p></div>
+      <div class="stage"><span class="n">04 · store</span><h3>Your database</h3><p>SQLite on a local disk for a single node, or a Postgres database of its own (not your application's). Retention is yours to set.</p></div>
     </div>
   </div>
 </section>
@@ -345,7 +345,7 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
     <div class="sec-head">
       <span class="eyebrow">Measured, not promised</span>
       <h2>Fast at millions of spans.</h2>
-      <p>Page load times before and after the rollup work in v10.11–v10.16, measured on AWS EKS with 3.1 million spans stored.</p>
+      <p>Page load times before and after the rollup work in v10.11–v10.16, measured on AWS EKS with 3.1 million spans stored. One instance ingests about 1,500–2,500 spans per second: plenty for clusters up to about 25–50 nodes, not for very high volume.</p>
     </div>
     <div class="bench" id="bench" role="table" aria-label="Page load times before and after">
       <div class="bench-row" role="row"><span class="name" role="cell">Services</span><div class="bar" role="cell"><i style="width:0.3%"></i></div><span class="t" role="cell"><s>36.5 s</s><b>0.1 s</b></span></div>
