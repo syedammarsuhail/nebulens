@@ -119,7 +119,7 @@
       ? el("div", { class: "upgrade-price" }, el("div", { class: "up-amount" }, "$35"), el("div", { class: "up-period" }, "/ node / month"),
           el("div", { class: "up-note" }, "Billed annually, from $10,000 a year. No usage or per-seat fees."))
       : el("div", { class: "upgrade-price" }, el("div", { class: "up-amount" }, "$99"), el("div", { class: "up-period" }, "/ month"),
-          el("div", { class: "up-note" }, "Includes 5 nodes, then $12 per node per month. Billed annually. No usage or per-seat fees."));
+          el("div", { class: "up-note" }, "Billed annually: 5 nodes included, then $12 per node. Or $129 / month billed monthly. No usage or per-seat fees."));
     const body = el("div", { class: "upgrade-modal" },
       el("div", { class: "um-icon" }, icon("sparkle", 28)),
       el("div", { class: "um-desc" }, desc),

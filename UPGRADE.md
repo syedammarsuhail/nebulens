@@ -1,6 +1,6 @@
 > **v11.8** — chart `0.4.8`. Rebuild the image. **New plans and licensing.**
-> - **Plans:** Community (free: 1 cluster up to 5 nodes, 20 dashboards, 25 alerts, 3 SLOs, 5 synthetic checks, 7-day retention,
->   50 AI answers a day; no service cap any more), Pro (unlimited, SSO and roles), Enterprise (adds per-environment access and
+> - **Plans:** Community (free: 1 cluster up to 5 nodes, 10 dashboards, 15 alerts, 3 SLOs, 3 synthetic checks, 7-day retention,
+>   30 AI answers a day; no service cap any more), Pro (unlimited, SSO and roles), Enterprise (adds per-environment access and
 >   the SIEM audit export). See the pricing page.
 > - **Signed licence keys** (`NBL1....`) carry the plan, node count and expiry, are checked offline and cannot be forged.
 >   Helm: `license.existingSecret` (or `license.key`). New `/api/license` and a Settings → Plan panel with node usage; an

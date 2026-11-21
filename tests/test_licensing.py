@@ -103,3 +103,13 @@ def test_sso_sessions_stop_working_when_not_pro(srv, monkeypatch):
     tok = Request({"type": "http", "headers": [(b"authorization", f"Bearer {srv.AUTH_TOKEN}".encode())]})
     if srv.AUTH_TOKEN:
         assert srv._identify(tok)["via"] == "token"
+
+
+def test_community_limits_match_the_pricing_page(srv):
+    # docs/pricing.html, docs/index.html and GETTING-STARTED.md publish these numbers; change them together
+    assert {k: srv.TIER_LIMITS[k] for k in ("max_nodes", "max_dashboards", "max_alerts", "max_slos", "max_synthetics",
+                                            "retention_days")} == {"max_nodes": 5, "max_dashboards": 10, "max_alerts": 15,
+                                                                    "max_slos": 3, "max_synthetics": 3, "retention_days": 7}
+    import pathlib
+    page = (pathlib.Path(__file__).parent.parent / "docs" / "pricing.html").read_text(encoding="utf-8")
+    assert "<td>10 / 15 / 3 / 3</td>" in page and "30 AI answers" in page

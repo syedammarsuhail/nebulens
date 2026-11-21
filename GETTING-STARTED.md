@@ -266,8 +266,8 @@ messages, log lines) are sent to that provider.
 | Traces, logs, metrics, service map, Kubernetes, eBPF tracing, built-in metrics, Live Insights, website monitoring | Yes | Yes | Yes |
 | PII redaction, mTLS, signed images | Yes | Yes | Yes |
 | Footprint | 1 cluster, up to 5 nodes | Licensed nodes, unlimited clusters | Licensed nodes |
-| Dashboards / alert rules / SLOs / synthetic checks | 20 / 25 / 3 / 5 | Unlimited | Unlimited |
-| AI answers with your own model | 50 per day (`NEBULENS_COMMUNITY_AI_DAILY`); rule-based answers unlimited | Unlimited | Unlimited |
+| Dashboards / alert rules / SLOs / synthetic checks | 10 / 15 / 3 / 3 | Unlimited | Unlimited |
+| AI answers with your own model | 30 per day (`NEBULENS_COMMUNITY_AI_DAILY`); rule-based answers unlimited | Unlimited | Unlimited |
 | Retention | Up to 7 days | Your choice | Your choice |
 | SSO (OIDC) with viewer / editor / admin roles, audit log | No | Yes | Yes |
 | Per-environment access, audit log streamed to a SIEM (syslog) | No | No | Yes |

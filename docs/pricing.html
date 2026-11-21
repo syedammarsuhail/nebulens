@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NebuLens Pricing</title>
-<meta name="description" content="NebuLens pricing: free Community edition, Pro at $99 a month including 5 nodes, and Enterprise. No per-GB, per-host-volume or per-seat fees.">
+<meta name="description" content="NebuLens pricing: free Community edition, Pro from $99 a month including 5 nodes (or $129 billed monthly), and Enterprise. No per-GB, per-host-volume or per-seat fees.">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,6 +50,9 @@ section h2{font-size:clamp(26px,3.4vw,36px);margin-bottom:10px}
 .sub{color:var(--muted);margin-bottom:26px;max-width:46em}
 .calc{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;align-items:center}
 .calc label{font-weight:600;display:block;margin-bottom:10px}
+.billing{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;padding:3px;margin-bottom:18px;gap:2px}
+.seg{border:0;background:transparent;color:var(--muted);font:600 13px var(--body);padding:7px 14px;border-radius:999px;cursor:pointer}
+.seg.on{background:var(--accent);color:#fff}
 .calc input[type=range]{width:100%;accent-color:var(--accent)}
 .nodes{font:700 34px var(--display)}
 .result{display:grid;gap:8px}
@@ -96,16 +99,16 @@ footer a{color:var(--dim);text-decoration:none}
     <ul>
       <li><span><b>The full platform:</b> traces, logs, metrics, service map, Kubernetes, eBPF tracing, built-in metrics, Live Insights</span></li>
       <li><span><b>1 cluster, up to 5 nodes</b></span></li>
-      <li><span><b>20</b> dashboards, <b>25</b> alerts, <b>3</b> SLOs, <b>5</b> synthetic checks</span></li>
+      <li><span><b>10</b> dashboards, <b>15</b> alerts, <b>3</b> SLOs, <b>3</b> synthetic checks</span></li>
       <li><span><b>7 days</b> of retention</span></li>
-      <li><span><b>50 AI answers</b> a day with your own model</span></li>
+      <li><span><b>30 AI answers</b> a day with your own model</span></li>
       <li><span>PII redaction, mTLS, signed images</span></li>
     </ul>
     <a class="btn" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install Community</a>
   </div>
   <div class="plan pro">
     <h3>Pro <span class="badge">14-DAY TRIAL</span></h3>
-    <div class="price">$99 / month<small>includes 5 nodes, then $12 per node per month · billed annually</small></div>
+    <div class="price">$99 / month<small>billed annually · includes 5 nodes, then $12 per node<br>or $129 / month billed monthly, then $15 per node</small></div>
     <ul>
       <li><span><b>Everything in Community</b></span></li>
       <li><span><b>Unlimited</b> nodes and clusters (you pay per node)</span></li>
@@ -136,15 +139,19 @@ footer a{color:var(--dim);text-decoration:none}
   <p class="sub">A node is one Kubernetes node, or one VM running workloads you monitor. Count your nodes and move the slider.</p>
   <div class="calc">
     <div>
+      <div class="billing" role="group" aria-label="Billing">
+        <button type="button" id="bill-annual" class="seg on" aria-pressed="true">Billed annually</button>
+        <button type="button" id="bill-monthly" class="seg" aria-pressed="false">Billed monthly</button>
+      </div>
       <label for="nodes-in">Nodes</label>
       <div class="nodes"><span id="nodes-out">10</span> nodes</div>
       <input id="nodes-in" type="range" min="1" max="200" value="10">
     </div>
     <div class="result" aria-live="polite">
-      <div class="row"><span>Pro base (includes 5 nodes)</span><b>$99 / mo</b></div>
+      <div class="row"><span>Pro base (includes 5 nodes)</span><b id="base">$99 / mo</b></div>
       <div class="row"><span>Extra nodes</span><b id="extra">5 × $12</b></div>
       <div class="row big"><span>Pro total</span><b id="total">$159 / mo</b></div>
-      <div class="row"><span>Per year (billed annually)</span><b id="year">$1,908</b></div>
+      <div class="row"><span id="year-label">Per year (billed annually)</span><b id="year">$1,908</b></div>
       <p class="note" id="compare"></p>
     </div>
   </div>
@@ -161,9 +168,9 @@ footer a{color:var(--dim);text-decoration:none}
       <tr><td>Built-in metrics from spans and logs, Live Insights</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
       <tr><td>Browser monitoring (RUM), integrations catalogue</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
       <tr><td>Ask NebuLens, rule-based</td><td class="y">Unlimited</td><td class="y">Unlimited</td><td class="y">Unlimited</td></tr>
-      <tr><td>Ask NebuLens with your own AI model</td><td>50 a day</td><td class="y">Unlimited</td><td class="y">Unlimited</td></tr>
+      <tr><td>Ask NebuLens with your own AI model</td><td>30 a day</td><td class="y">Unlimited</td><td class="y">Unlimited</td></tr>
       <tr><td>Nodes</td><td>5 (1 cluster)</td><td>Per node</td><td>Per node</td></tr>
-      <tr><td>Dashboards / alerts / SLOs / synthetic checks</td><td>20 / 25 / 3 / 5</td><td class="y">Unlimited</td><td class="y">Unlimited</td></tr>
+      <tr><td>Dashboards / alerts / SLOs / synthetic checks</td><td>10 / 15 / 3 / 3</td><td class="y">Unlimited</td><td class="y">Unlimited</td></tr>
       <tr><td>Retention</td><td>7 days</td><td class="y">Your choice</td><td class="y">Your choice</td></tr>
       <tr><td>PII redaction at ingest, mTLS, signed images, SBOM</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
       <tr><td>SSO (OIDC), viewer / editor / admin roles, audit log</td><td class="n">No</td><td class="y">Yes</td><td class="y">Yes</td></tr>
@@ -183,6 +190,7 @@ footer a{color:var(--dim);text-decoration:none}
     <details><summary>Does the licence phone home?</summary><p>No. Keys are signed and checked offline inside your install, so NebuLens works in air-gapped networks and never reports usage.</p></details>
     <details><summary>What happens after the 14-day trial?</summary><p>NebuLens keeps running as Community. Nothing is deleted; limits above Community stop applying to new items until you add a licence.</p></details>
     <details><summary>Do you charge for data volume or users?</summary><p>No. Pro and Enterprise are priced by node only. Send as many traces, logs and metrics as your hardware can store, with as many users as you like.</p></details>
+    <details><summary>Can I pay monthly?</summary><p>Yes. Pro is $129 a month billed monthly (5 nodes included, then $15 per node), or $99 a month billed annually (then $12 per node). Cancel a monthly plan any time; the licence runs to the end of the month you paid for.</p></details>
     <details><summary>Are there discounts?</summary><p>Startups (under 3 years old, under 30 people) get 50% off the first year. Our first 10 design partners get 40% off for two years in return for feedback and a case study.</p></details>
   </div>
 </div></section>
@@ -192,11 +200,23 @@ footer a{color:var(--dim);text-decoration:none}
 <script>
 (function () {
   var inp = document.getElementById("nodes-in"), fmt = function (n) { return "$" + n.toLocaleString("en-US"); };
+  var monthly = false, A = document.getElementById("bill-annual"), M = document.getElementById("bill-monthly");
+  function setBilling(m) {
+    monthly = m;
+    A.classList.toggle("on", !m); A.setAttribute("aria-pressed", String(!m));
+    M.classList.toggle("on", m); M.setAttribute("aria-pressed", String(m));
+    upd();
+  }
+  A.addEventListener("click", function () { setBilling(false); });
+  M.addEventListener("click", function () { setBilling(true); });
   function upd() {
-    var n = +inp.value, extra = Math.max(0, n - 5), month = 99 + extra * 12;
+    var base = monthly ? 129 : 99, per = monthly ? 15 : 12;
+    var n = +inp.value, extra = Math.max(0, n - 5), month = base + extra * per;
     document.getElementById("nodes-out").textContent = n;
-    document.getElementById("extra").textContent = extra + " × $12";
+    document.getElementById("base").textContent = fmt(base) + " / mo";
+    document.getElementById("extra").textContent = extra + " × $" + per;
     document.getElementById("total").textContent = fmt(month) + " / mo";
+    document.getElementById("year-label").textContent = monthly ? "Over 12 months (billed monthly)" : "Per year (billed annually)";
     document.getElementById("year").textContent = fmt(month * 12);
     // Datadog list prices, annual billing: Infrastructure Pro $15 + APM $31 per host per month (datadoghq.com/pricing/list)
     document.getElementById("compare").textContent = "For comparison, Datadog Infrastructure Pro + APM at list price is " + fmt(n * 46) +

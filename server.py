@@ -193,10 +193,10 @@ def _print_tier():
 # there is no service cap: eBPF finds every workload on day one, and a service cap made the free tier look broken.
 TIER_LIMITS = {
     "max_nodes": COMMUNITY_NODES,
-    "max_dashboards": 20,
-    "max_alerts": 25,
+    "max_dashboards": 10,
+    "max_alerts": 15,
     "max_slos": 3,
-    "max_synthetics": 5,
+    "max_synthetics": 3,
     "retention_days": 7,
 }
 if not IS_PRO:
@@ -5065,7 +5065,7 @@ def _ai_name():
 
 # Community gets a daily allowance of AI answers so people can try the real thing; after that the UI offers Pro. 0 = AI answers
 # are Pro-only. Pro (and the trial) is unlimited. Customers bring their own model, so the allowance costs the vendor nothing.
-COMMUNITY_AI_DAILY = max(0, int(os.environ.get("NEBULENS_COMMUNITY_AI_DAILY", "50") or 0))
+COMMUNITY_AI_DAILY = max(0, int(os.environ.get("NEBULENS_COMMUNITY_AI_DAILY", "30") or 0))
 
 
 def _ai_quota():
