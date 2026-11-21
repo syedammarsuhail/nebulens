@@ -331,7 +331,7 @@ Your data is kept. New tables are created automatically.
 ## Security checklist
 
 - Scan every build before you deploy it: `bash scripts/release-check.sh` (tests, dependency CVEs, code scan, secrets, chart).
-  In a GitHub repository, `.github/workflows/security.yml` also runs Snyk and SonarCloud and publishes only when all pass.
+  In a GitHub repository, `.github/workflows/security.yml` also runs Snyk and SonarCloud once you add `SNYK_TOKEN` and `SONAR_TOKEN`.
 - A long random `NEBULENS_TOKEN`, different for every install. The chart refuses the placeholder tokens in its values files.
 - HTTPS in front of port 4318 (any reverse proxy or ingress).
 - Open only the ports you use: 4318 (UI and API), and 4317 / 4319 for the collector if other machines send to it.

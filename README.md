@@ -64,8 +64,10 @@ Enterprise adds per-environment access, SIEM audit export and air-gapped support
 
 ## Security
 
-Every release passes `scripts/release-check.sh` (tests, dependency audit, static analysis, secret scan, Helm and UI checks), and
-CI adds Snyk and SonarCloud (`.github/workflows/security.yml`). Images are published only when all of them pass. Please report a
+Every release passes `scripts/release-check.sh` (tests, dependency audit, static analysis, secret scan, Helm and UI checks).
+Release images are built in CI, scanned (a fixable high or critical vulnerability stops the release), signed with Sigstore, and
+shipped with an SBOM. Snyk and SonarCloud are set up in `.github/workflows/security.yml`; they run once their tokens are added to
+the repository. Please report a
 vulnerability privately through GitHub security advisories, not in a public issue.
 
 ## Development

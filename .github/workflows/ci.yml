@@ -65,6 +65,6 @@ jobs:
         run: |
           docker build -t nebulens:ci .
           test "$(docker run --rm --entrypoint id nebulens:ci -u)" = "1000"
-          docker run -d --name p -e NEBULENS_TOKEN=tok nebulens:ci
-          for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' p)" = healthy ] && exit 0; sleep 2; done
-          docker logs p; exit 1
+          docker run -d --name nebulens-ci -e NEBULENS_TOKEN=tok nebulens:ci
+          for i in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' nebulens-ci)" = healthy ] && exit 0; sleep 2; done
+          docker logs nebulens-ci; exit 1
