@@ -4,10 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
-<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-</head>
-<body>
 <title>NebuLens</title>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="NebuLens">
+<meta property="og:title" content="NebuLens">
+<meta property="og:description" content="NebuLens: self-hosted, OpenTelemetry-native observability for regulated teams. Traces, logs, metrics and a service map on Postgres: no ClickHouse, no SaaS, works air-gapped.">
+<meta property="og:url" content="https://nebulens.dev/">
+<meta property="og:image" content="https://nebulens.dev/img/og-card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="NebuLens: observability that stays inside your network">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://nebulens.dev/">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="NebuLens: self-hosted, OpenTelemetry-native observability for regulated teams. Traces, logs, metrics and a service map on Postgres: no ClickHouse, no SaaS, works air-gapped.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,6 +77,17 @@ nav.top .btn{height:38px;padding:0 16px;font-size:14px;margin-left:auto}
 .hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:center;padding-block:88px 96px}
 .hero h1{font-size:clamp(40px,6vw,68px);line-height:1.04;font-weight:700;margin-top:18px}
 .hero h1 em{font-style:normal;color:var(--accent-2)}
+nav.top .navcall{margin-right:8px}
+@media (max-width:760px){nav.top .navcall{display:none}}
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.shots figure{margin:0;min-width:0}
+.shots img{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block}
+.shots figcaption{margin-top:10px;color:var(--muted);font-size:14px}
+@media (max-width:900px){.shots{grid-template-columns:1fr}}
+.arch{margin:28px 0 0;overflow-x:auto}
+.arch svg{width:100%;min-width:640px;height:auto;display:block}
+.partner{border:1px solid rgba(139,124,246,.5);background:rgba(139,124,246,.1);border-radius:12px;padding:14px 18px;margin-bottom:22px;color:var(--text)}
+.partner a{color:var(--accent-2);font-weight:600;margin-left:6px}
 .hero .lede{font-size:19px;color:var(--muted);margin-top:22px;max-width:34em}
 .hero .cta{display:flex;gap:12px;margin-top:34px;flex-wrap:wrap}
 .facts{display:flex;gap:22px;margin-top:34px;flex-wrap:wrap;font:500 13px var(--mono);color:var(--dim)}
@@ -210,8 +229,10 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
 footer a{text-decoration:none}footer a:hover{color:var(--text)}
 footer .fl{display:flex;gap:22px;flex-wrap:wrap}
 </style>
+</head>
+<body>
 
-<div class="notice"><div class="wrap"><span><b>v11.1</b> New lens look, and a Services page that loads in 0.1 s with 3.1 million spans stored.</span><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Get started →</a></div></div>
+<div class="notice"><div class="wrap"><span><b>v11.8</b> Signed release images with an SBOM, Pro billed monthly, and a free Community plan up to 5 nodes.</span><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Get started →</a></div></div>
 
 <nav class="top" aria-label="Main">
   <div class="wrap">
@@ -219,6 +240,7 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
       <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>NebuLens
     </a>
     <div class="links"><a href="#platform">Platform</a><a href="#how">How it works</a><a href="#performance">Performance</a><a href="compare.html">Compare</a><a href="pricing.html">Pricing</a><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Docs</a></div>
+    <a class="btn primary navcall" href="mailto:sales@nebulens.dev?subject=20-minute%20architecture%20call">Book a call</a>
     <a class="btn" href="https://github.com/syedammarsuhail/nebulens"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/></svg>GitHub</a>
   </div>
 </nav>
@@ -233,7 +255,7 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
       <div class="cta">
         <a class="btn primary" href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install in 20 minutes
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-        <a class="btn" href="#platform">See the platform</a>
+        <a class="btn" href="mailto:sales@nebulens.dev?subject=20-minute%20architecture%20call&body=Company%3A%0ACluster%20size%20(nodes)%3A%0AWhat%20you%20want%20to%20check%3A%0ATimes%20that%20suit%20you%20(with%20time%20zone)%3A%0A">Book a 20-minute call</a>
       </div>
       <div class="facts"><span>One OTLP endpoint, :4318</span><span>Kubernetes or a single VM</span><span>SQLite or Postgres</span></div>
     </div>
@@ -324,6 +346,21 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
   </div>
 </section>
 
+<section id="screens">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">The real product</span>
+      <h2>What you see after install.</h2>
+      <p>Unedited screenshots of NebuLens with its demo services sending traffic. No mock-ups.</p>
+    </div>
+    <div class="shots">
+      <figure><a href="img/shot-services.jpg"><img src="img/shot-services.jpg" alt="NebuLens Services view: request rate, error rate and latency per service" loading="lazy" width="1440" height="900"></a><figcaption>Services: health, rate, errors and latency for every service</figcaption></figure>
+      <figure><a href="img/shot-map.jpg"><img src="img/shot-map.jpg" alt="NebuLens service map showing calls between demo services" loading="lazy" width="1440" height="900"></a><figcaption>Service map: how traffic and errors flow</figcaption></figure>
+      <figure><a href="img/shot-traces.jpg"><img src="img/shot-traces.jpg" alt="NebuLens traces list with durations and status" loading="lazy" width="1440" height="900"></a><figcaption>Traces: from a slow request to its logs</figcaption></figure>
+    </div>
+  </div>
+</section>
+
 <section id="how">
   <div class="wrap">
     <div class="sec-head">
@@ -337,6 +374,21 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
       <div class="stage core"><span class="n">03 · analyse</span><h3>NebuLens</h3><p>One OTLP endpoint receives everything: <code>http://nebulens:4318</code>. Summaries are pre-computed every minute, so pages stay fast.</p></div>
       <div class="stage"><span class="n">04 · store</span><h3>Your database</h3><p>SQLite on a local disk for a single node, or a Postgres database of its own (not your application's). Retention is yours to set.</p></div>
     </div>
+    <figure class="arch" role="img" aria-label="Architecture: inside your network, your services send OpenTelemetry data to the collector, then to the NebuLens server, which stores it in its own Postgres or SQLite. Nothing crosses the network boundary unless you connect an outside AI model or alert webhook.">
+      <svg viewBox="0 0 960 300" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="22" width="940" height="236" rx="18" fill="none" stroke="#8b7cf6" stroke-width="2" stroke-dasharray="8 7"/>
+        <text x="34" y="52" fill="#bcb2fd" font-size="15" font-family="Sora, sans-serif" font-weight="600">Your network (VPC, data centre or air-gapped site)</text>
+        <g font-family="IBM Plex Sans, sans-serif" font-size="15" text-anchor="middle">
+          <rect x="40" y="110" width="180" height="84" rx="12" fill="#141729" stroke="#343a5c"/><text x="130" y="146" fill="#e8e9f5" font-weight="600">Your services</text><text x="130" y="170" fill="#a3a7c4" font-size="13">OTel SDKs or eBPF</text>
+          <rect x="270" y="110" width="180" height="84" rx="12" fill="#141729" stroke="#343a5c"/><text x="360" y="146" fill="#e8e9f5" font-weight="600">OTel Collector</text><text x="360" y="170" fill="#a3a7c4" font-size="13">from the Helm chart</text>
+          <rect x="500" y="110" width="180" height="84" rx="12" fill="#1d1a3d" stroke="#8b7cf6"/><text x="590" y="146" fill="#e8e9f5" font-weight="600">NebuLens server</text><text x="590" y="170" fill="#a3a7c4" font-size="13">OTLP on :4318 + web UI</text>
+          <rect x="730" y="110" width="180" height="84" rx="12" fill="#141729" stroke="#343a5c"/><text x="820" y="146" fill="#e8e9f5" font-weight="600">Its own database</text><text x="820" y="170" fill="#a3a7c4" font-size="13">Postgres or SQLite</text>
+        </g>
+        <g stroke="#bcb2fd" stroke-width="2" fill="none"><path d="M220 152h42"/><path d="M450 152h42"/><path d="M680 152h42"/></g>
+        <g fill="#bcb2fd"><path d="M262 146l9 6-9 6z"/><path d="M492 146l9 6-9 6z"/><path d="M722 146l9 6-9 6z"/></g>
+        <text x="480" y="236" fill="#a3a7c4" font-size="14" text-anchor="middle" font-family="IBM Plex Sans, sans-serif">Nothing leaves unless you choose to: the licence is checked offline and no usage data is sent to NebuLens.</text>
+      </svg>
+    </figure>
   </div>
 </section>
 
@@ -368,10 +420,11 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
         <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Data never leaves your network</b><span>Runs on your Kubernetes cluster or a VM, including air-gapped sites.</span></div></li>
         <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Access you control</b><span>Tokens for ingest and API, OIDC single sign-on, viewer, editor and admin roles, and an audit log.</span></div></li>
         <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Scanned on every release</b><span>Tests, dependency audit, static analysis, secret scanning, Snyk and SonarCloud must all pass before an image is published.</span></div></li>
+        <li><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg><div><b>Signed image, SBOM and vulnerability report</b><span>Every release image is signed with Sigstore; the SBOM and scan report are attached to the <a href="https://github.com/syedammarsuhail/nebulens/releases">GitHub release</a>.</span></div></li>
       </ul>
     </div>
-    <pre class="gate" aria-label="Output of the release check for v11.1"><span class="h">$ bash scripts/release-check.sh</span>
-=== 1/7 tests ===         <span class="ok">210 passed</span>
+    <pre class="gate" aria-label="Output of the release check"><span class="h">$ bash scripts/release-check.sh</span>
+=== 1/7 tests ===         <span class="ok">248 passed</span>
 === 2/7 dependencies ===  <span class="ok">No known vulnerabilities found</span>
 === 3/7 code scan ===     <span class="ok">0 high severity</span>
 === 4/7 secrets ===       <span class="ok">no secrets found</span>
@@ -390,6 +443,7 @@ footer .fl{display:flex;gap:22px;flex-wrap:wrap}
       <h2>Start free. Upgrade when you outgrow it.</h2>
       <p>No usage-based billing. Community is free forever; Pro removes every limit. New installs get a 14-day Pro trial.</p>
     </div>
+    <div class="partner"><b>Design partners wanted:</b> the first 10 teams get 40% off for two years in return for feedback and a short case study. <a href="mailto:sales@nebulens.dev?subject=Design%20partner%20programme&body=Company%3A%0ACluster%20size%20(nodes)%3A%0AWhat%20you%20want%20to%20check%3A%0ATimes%20that%20suit%20you%20(with%20time%20zone)%3A%0A">Apply by email</a></div>
     <div class="plans">
       <div class="plan">
         <h3>Community</h3>
