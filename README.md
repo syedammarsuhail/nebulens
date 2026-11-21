@@ -3,7 +3,7 @@
 **A clear lens on your microservices.** Self-hosted, OpenTelemetry-native observability: traces, logs and metrics
 from every service, shown as live signals so you see traffic waves, latency spikes and error bursts the moment they happen.
 
-**Website:** https://syedammarsuhail.github.io/nebulens/ ([developers](https://syedammarsuhail.github.io/nebulens/developers.html) · [enterprise](https://syedammarsuhail.github.io/nebulens/enterprise.html) · [product tour](https://syedammarsuhail.github.io/nebulens/tour.html) · [AI](https://syedammarsuhail.github.io/nebulens/ai.html))
+**Website:** https://nebulens.dev/ ([developers](https://nebulens.dev/developers.html) · [enterprise](https://nebulens.dev/enterprise.html) · [product tour](https://nebulens.dev/tour.html) · [AI](https://nebulens.dev/ai.html))
 
 One OTLP endpoint (`:4318`), one web UI, your own infrastructure. Predictable per-node pricing with no per-GB, per-span or per-seat fees, and your telemetry never leaves
 your network.
@@ -60,7 +60,7 @@ python scripts/smoke.py http://<host>:4318 --token <your token>
 
 Community is free to self-host on one cluster of up to 5 nodes, with the full product: traces, logs, metrics, the service map,
 eBPF tracing, built-in metrics and Live Insights. Pro adds unlimited nodes and retention, SSO with roles and unlimited AI answers;
-Enterprise adds per-environment access, SIEM audit export and air-gapped support. Coming from SigNoz or the Grafana stack? See [how NebuLens compares](https://syedammarsuhail.github.io/nebulens/compare.html). See the [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html).
+Enterprise adds per-environment access, SIEM audit export and air-gapped support. Coming from SigNoz or the Grafana stack? See [how NebuLens compares](https://nebulens.dev/compare.html). See the [pricing page](https://nebulens.dev/pricing.html).
 
 ## Security
 

@@ -273,7 +273,7 @@ messages, log lines) are sent to that provider.
 | Per-environment access, audit log streamed to a SIEM (syslog) | No | No | Yes |
 | Support | Community | Email | Priority, response targets in your contract |
 
-Prices: [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html). A new install gets a 14-day Pro trial; afterwards NebuLens keeps running as Community and
+Prices: [pricing page](https://nebulens.dev/pricing.html). A new install gets a 14-day Pro trial; afterwards NebuLens keeps running as Community and
 nothing is deleted. Going over your node count shows a banner; data is never refused.
 
 **Licence key.** Pro and Enterprise keys start with `NBL1.` and carry the plan, the node count and the expiry date. They are

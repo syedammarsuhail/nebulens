@@ -80,7 +80,7 @@ AUTH_TOKEN = os.environ.get("NEBULENS_TOKEN", "")  # optional bearer token for i
 _LICENSE_PUBKEYS = ("VDMn9Yv+M/GgwrkXCy3stTCEKY9AdYw7lWUrI2S2+v4=",)
 _LICENSE_KEY = (os.environ.get("NEBULENS_LICENSE_KEY", "") or "").strip()
 COMMUNITY_NODES = 5        # the free tier: one cluster or VM fleet of up to 5 nodes
-PRICING_URL = os.environ.get("NEBULENS_PRICING_URL", "https://syedammarsuhail.github.io/nebulens/pricing.html")
+PRICING_URL = os.environ.get("NEBULENS_PRICING_URL", "https://nebulens.dev/pricing.html")
 _LIMIT_NAMES = {"dashboards": "dashboards", "alerts": "alert rules", "slos": "SLOs", "synthetics": "synthetic checks"}
 
 
