@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NebuLens Compared</title>
+<meta name="description" content="How NebuLens compares with SigNoz, ClickStack and the Grafana stack for self-hosted, OpenTelemetry-native observability: architecture, pricing, and when each is the better choice.">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%238b5cf6%27/%3E%3Cstop offset=%271%27 stop-color=%27%233d6df2%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2724%27 height=%2724%27 rx=%276%27 fill=%27url(%23g)%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%277%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272%27/%3E%3Ccircle cx=%2712%27 cy=%2712%27 r=%272.8%27 fill=%27white%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: three plan cards, a node calculator, the full feature table, FAQ. Same dark observatory style as the home page. */
+:root{color-scheme:dark;--bg:#0a0b14;--bg-2:#0f1120;--panel:#141729;--line:#262a44;--line-2:#343a5c;--text:#e8e9f5;--muted:#a3a7c4;--dim:#71759a;
+  --accent:#8b7cf6;--accent-2:#bcb2fd;--ok:#3ec98e;--display:"Sora","Segoe UI",system-ui,sans-serif;--body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--body);overflow-x:hidden}
+a{color:var(--accent-2)}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent-2);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1160px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+nav{border-bottom:1px solid var(--line);background:rgba(10,11,20,.9)}
+nav .wrap{display:flex;align-items:center;gap:24px;height:64px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);font:700 19px var(--display)}
+.mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#8b5cf6,#3d6df2);display:grid;place-items:center;flex:none}
+.mark svg{width:22px;height:22px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round}.mark .core{fill:#fff;stroke:none}.mark .glint{stroke-width:1.6;opacity:.85}
+nav .links{margin-left:auto;display:flex;gap:20px;font-size:15px}nav .links a{color:var(--muted);text-decoration:none}nav .links a:hover{color:var(--text)}
+header{padding-block:72px 40px;text-align:center}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent-2)}
+header h1{font-size:clamp(34px,5vw,54px);line-height:1.08;margin-top:14px}
+header p{color:var(--muted);font-size:18px;max-width:40em;margin:16px auto 0}
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding-block:24px 40px}
+.plan{border:1px solid var(--line);border-radius:18px;padding:28px;background:var(--panel);display:grid;gap:14px;align-content:start;min-width:0}
+.plan.pro{border-color:rgba(139,124,246,.55);background:linear-gradient(160deg,rgba(139,124,246,.14),transparent 55%),var(--panel)}
+.plan h3{font-size:22px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{font:600 11px var(--mono);letter-spacing:.06em;padding:3px 9px;border-radius:999px;background:var(--accent);color:#fff}
+.price{font:700 40px var(--display);letter-spacing:-.02em;line-height:1.1}
+.price small{display:block;font:400 14px var(--body);color:var(--muted);letter-spacing:0;margin-top:6px}
+.plan ul{list-style:none;margin:0;padding:0;display:grid;gap:9px;font-size:15px}
+.plan li{display:grid;grid-template-columns:18px 1fr;gap:8px;color:var(--muted)}
+.plan li::before{content:"";width:8px;height:8px;margin-top:8px;border-radius:50%;background:var(--accent-2)}
+.plan li b{color:var(--text);font-weight:600}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 18px;border-radius:999px;font:600 15px var(--body);text-decoration:none;border:1px solid var(--line-2);color:var(--text)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (max-width:900px){.plans{grid-template-columns:1fr}}
+section{padding-block:56px;border-top:1px solid var(--line)}
+section h2{font-size:clamp(26px,3.4vw,36px);margin-bottom:10px}
+.sub{color:var(--muted);margin-bottom:26px;max-width:46em}
+.calc{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;align-items:center}
+.calc label{font-weight:600;display:block;margin-bottom:10px}
+.billing{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;padding:3px;margin-bottom:18px;gap:2px}
+.seg{border:0;background:transparent;color:var(--muted);font:600 13px var(--body);padding:7px 14px;border-radius:999px;cursor:pointer}
+.seg.on{background:var(--accent);color:#fff}
+.calc input[type=range]{width:100%;accent-color:var(--accent)}
+.nodes{font:700 34px var(--display)}
+.result{display:grid;gap:8px}
+.row{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px dashed var(--line-2);font-variant-numeric:tabular-nums}
+.row:last-child{border-bottom:0}
+.row b{font-family:var(--mono);font-weight:500}
+.row.big b{font-size:22px;color:var(--accent-2)}
+.note{font-size:13px;color:var(--dim);margin-top:10px}
+@media (max-width:760px){.calc{grid-template-columns:1fr}}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;min-width:640px;font-size:15px}
+th,td{padding:12px 16px;border-bottom:1px solid var(--line);text-align:center}
+th{font:600 14px var(--display);background:var(--bg-2)}
+th:first-child,td:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+td.y{color:var(--ok);font-weight:600}td.n{color:var(--dim)}
+.faq{display:grid;gap:10px;max-width:860px}
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0 20px}
+summary{cursor:pointer;list-style:none;padding:16px 0;font:600 16px var(--display);display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--accent-2)}details[open] summary::after{content:"−"}
+details p{padding:0 0 18px;color:var(--muted)}
+footer{padding-block:36px;color:var(--dim);font-size:14px;border-top:1px solid var(--line)}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer a{color:var(--dim);text-decoration:none}
+.note-src{font-size:13px;color:var(--dim);margin-top:12px}
+.honest{margin:0;padding-left:20px;display:grid;gap:10px;max-width:760px;color:var(--muted)}
+.honest b{color:var(--text)}
+.code{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font:13px/1.6 var(--mono);overflow-x:auto;color:var(--text);margin:0}
+header .wrap p{max-width:44em}
+</style>
+</head>
+<body>
+<nav aria-label="Main"><div class="wrap">
+  <a class="brand" href="index.html"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle class="core" cx="12" cy="12" r="3"/><path class="glint" d="M7.6 9.4a5 5 0 0 1 2.6-2.5"/></svg></span>NebuLens</a>
+  <div class="links"><a href="index.html">Product</a><a href="compare.html">Compare</a><a href="enterprise.html">Enterprise</a><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Docs</a></div>
+</div></nav>
+
+<header><div class="wrap">
+  <span class="eyebrow">Compare</span>
+  <h1>Self-hosted observability without a database cluster to run</h1>
+  <p>NebuLens stores traces, logs and metrics in SQLite or Postgres. The popular open-source stacks are built on ClickHouse or on four separate backends. Here is what that means for you, and when they are the better choice.</p>
+</div></header>
+
+<section id="table"><div class="wrap">
+  <h2>At a glance</h2>
+  <p class="sub">Architecture and pricing as published by each project, checked on 21 November 2026. Prices change; follow the links for current figures.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th></th><th>NebuLens</th><th>SigNoz</th><th>ClickStack (HyperDX)</th><th>Grafana LGTM</th></tr></thead>
+    <tbody>
+      <tr><td>Storage you operate</td><td class="y">SQLite or Postgres</td><td>ClickHouse</td><td>ClickHouse</td><td>Loki, Tempo and Mimir, plus object storage</td></tr>
+      <tr><td>Services to run for a small install</td><td class="y">1 server + the OpenTelemetry Collector</td><td>Several (app, ClickHouse, collector)</td><td>Several (UI, ClickHouse, collector)</td><td>4 or more (Grafana, Loki, Tempo, Mimir)</td></tr>
+      <tr><td>OpenTelemetry-native</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+      <tr><td>eBPF tracing without restarting pods</td><td class="y">Included (Helm switch)</td><td>Add separately</td><td>Add separately</td><td>Grafana Beyla, added separately</td></tr>
+      <tr><td>Free self-hosted edition</td><td class="y">Yes, up to 5 nodes</td><td class="y">Yes, no node limit</td><td class="y">Yes</td><td class="y">Yes</td></tr>
+      <tr><td>Paid self-hosted support starts at</td><td class="y">$99 / month (Pro, billed annually)</td><td>$4,000 / month (Enterprise, includes cloud usage or self-hosted support)<sup>1</sup></td><td>Contact sales</td><td>Contact sales (Grafana Enterprise)</td></tr>
+      <tr><td>Very high data volume</td><td class="n">Up to about 2,000 spans/s per instance</td><td class="y">Built for it</td><td class="y">Built for it</td><td class="y">Built for it</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note-src"><sup>1</sup> <a href="https://signoz.io/pricing/">signoz.io/pricing</a>: Enterprise "starts at $4000/month" and lists dedicated cloud, BYOC and "Self-Hosted SigNoz: enterprise support". Checked 21 Nov 2026.</p>
+</div></section>
+
+<section id="why"><div class="wrap">
+  <h2>Why teams pick NebuLens</h2>
+  <div class="plans">
+    <div class="plan"><h3>Nothing new to operate</h3><p>If you already run Postgres, you already know how to back up, size and secure NebuLens. There is no ClickHouse, Kafka or ZooKeeper to learn.</p></div>
+    <div class="plan"><h3>Up in minutes</h3><p>One Helm chart deploys the server, the collector and eBPF tracing. Existing OpenTelemetry apps only change their exporter endpoint.</p></div>
+    <div class="plan"><h3>Paid support you can afford</h3><p>Pro is priced per node from $99 a month, with SSO, roles and an audit log. You do not need an enterprise contract to get a supported self-hosted install.</p></div>
+  </div>
+</div></section>
+
+<section id="choose-them"><div class="wrap">
+  <h2>When another tool is the better choice</h2>
+  <p class="sub">We would rather you pick the right tool than switch twice.</p>
+  <ul class="honest">
+    <li><b>You ingest far more than a few thousand spans per second.</b> ClickHouse-based tools scale further on one installation.</li>
+    <li><b>You want a hosted service.</b> SigNoz Cloud, ClickHouse Cloud and Grafana Cloud run it for you; NebuLens is self-hosted only.</li>
+    <li><b>You need continuous profiling today.</b> Grafana Pyroscope offers it; NebuLens does not yet.</li>
+    <li><b>You already run the Grafana stack well.</b> Keep it; the cost of switching is real.</li>
+  </ul>
+</div></section>
+
+<section id="switch"><div class="wrap">
+  <h2>Try it next to what you have</h2>
+  <p class="sub">Because every tool here speaks OpenTelemetry, you can send the same data to both and compare for two weeks. Add a second exporter to your existing collector:</p>
+  <pre class="code">exporters:
+  otlphttp/nebulens:
+    endpoint: http://nebulens.observability:4318
+service:
+  pipelines:
+    traces:
+      exporters: [otlphttp/current, otlphttp/nebulens]</pre>
+  <p class="sub" style="margin-top:14px"><a href="https://github.com/syedammarsuhail/nebulens/blob/main/GETTING-STARTED.md">Install guide</a> · <a href="pricing.html">Pricing</a></p>
+  <p class="note-src">SigNoz, ClickStack, ClickHouse, HyperDX, Grafana, Loki, Tempo, Mimir, Beyla and Pyroscope are trademarks of their owners. NebuLens is not affiliated with or endorsed by them.</p>
+</div></section>
+
+<footer><div class="wrap"><span>NebuLens · self-hosted, OpenTelemetry-native observability</span><span><a href="index.html">Home</a> · <a href="https://github.com/syedammarsuhail/nebulens">GitHub</a> · <a href="https://github.com/syedammarsuhail/nebulens/blob/main/LICENSE">License</a></span></div></footer>
+</body>
+</html>

@@ -60,7 +60,7 @@ python scripts/smoke.py http://<host>:4318 --token <your token>
 
 Community is free to self-host on one cluster of up to 5 nodes, with the full product: traces, logs, metrics, the service map,
 eBPF tracing, built-in metrics and Live Insights. Pro adds unlimited nodes and retention, SSO with roles and unlimited AI answers;
-Enterprise adds per-environment access, SIEM audit export and air-gapped support. See the [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html).
+Enterprise adds per-environment access, SIEM audit export and air-gapped support. Coming from SigNoz or the Grafana stack? See [how NebuLens compares](https://syedammarsuhail.github.io/nebulens/compare.html). See the [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html).
 
 ## Security
 
