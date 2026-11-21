@@ -10,6 +10,14 @@ Additional Use Grant: You may make production use of the Licensed Work,
                       Licensed Work to third parties as a commercial
                       observability service, or embedding it in a
                       product that competes with the Licensed Work.
+                      Production use of the Pro and Enterprise features
+                      (those that require a NebuLens licence key) is
+                      permitted only with a valid licence key or during
+                      the built-in trial. You may not remove, disable,
+                      bypass or modify the licence key check, the limits
+                      of the Community plan, or the features they gate,
+                      and you may not distribute a modified version that
+                      does so.
 Change Date:          Four years from the date the Licensed Work is
                       published (the "Change Date").
 Change License:       Apache License, Version 2.0
