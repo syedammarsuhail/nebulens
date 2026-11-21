@@ -1,5 +1,8 @@
-# Supply-chain evidence for security reviews: an SBOM, a vulnerability report and a signed image.
-# Banks and government buyers ask for all three before a deployment is approved.
+# Supply-chain evidence for security reviews: an SBOM, a vulnerability report and a signed image, published as a
+# GitHub Release. Banks and government buyers ask for all three before a deployment is approved.
+#
+# Every third-party action is pinned to a full commit SHA (the tag it came from is in the comment): tags can be moved,
+# and in March 2026 an attacker re-pointed the version tags of a popular scanner action to code that stole CI secrets.
 name: supply-chain
 
 on:
@@ -8,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write        # attach artefacts to the release
+  contents: write        # create the release and attach the evidence
   packages: write        # push the image
   id-token: write        # keyless signing with Sigstore
 
@@ -19,60 +22,94 @@ jobs:
   build-sign-sbom:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: docker/login-action@v3
+      - name: Version without the leading v (image tag 11.8 for git tag v11.8)
+        id: ver
+        run: echo "plain=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           push: true
-          tags: ${{ env.IMAGE }}:${{ github.ref_name }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.plain }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.description=NebuLens: self-hosted, OpenTelemetry-native observability
+            org.opencontainers.image.licenses=BUSL-1.1
           provenance: true        # SLSA provenance attestation
 
       # SBOM in both common formats: CycloneDX is usually what a bank's tooling wants,
       # SPDX is usual for government procurement.
-      - uses: anchore/sbom-action@v0
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: ${{ env.IMAGE }}:${{ github.ref_name }}
           format: cyclonedx-json
           output-file: nebulens-sbom.cdx.json
-      - uses: anchore/sbom-action@v0
+          upload-artifact: false
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: ${{ env.IMAGE }}:${{ github.ref_name }}
           format: spdx-json
           output-file: nebulens-sbom.spdx.json
+          upload-artifact: false
 
-      # Vulnerability report. Does not fail the build: the report is the deliverable, and a
+      # Vulnerability report (Grype). Does not fail the build: the report is the deliverable, and a
       # reviewer wants to see known issues with their severities, not a silent pass.
-      - uses: aquasecurity/trivy-action@0.28.0
+      - id: scan
+        uses: anchore/scan-action@1638637db639e0ade3258b51db49a9a137574c3e # v6.5.1
         with:
-          image-ref: ${{ env.IMAGE }}:${{ github.ref_name }}
-          format: sarif
-          output: nebulens-vulns.sarif
-          severity: CRITICAL,HIGH,MEDIUM
-          exit-code: "0"
+          image: ${{ env.IMAGE }}:${{ github.ref_name }}
+          fail-build: false
+          severity-cutoff: medium
+          output-format: sarif
+          output-file: nebulens-vulns.sarif
 
       # Keyless signature, verifiable with:
       #   cosign verify ghcr.io/<repo>:<tag> \
       #     --certificate-identity-regexp '^https://github.com/<repo>/' \
       #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
-      - uses: sigstore/cosign-installer@v3
+      - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
       - run: |
           cosign sign --yes "${IMAGE}@${DIGEST}"
           cosign attest --yes --predicate nebulens-sbom.cdx.json --type cyclonedx "${IMAGE}@${DIGEST}"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: supply-chain-evidence
           path: |
+            nebulens-sbom.cdx.json
+            nebulens-sbom.spdx.json
+            nebulens-vulns.sarif
+
+      - name: Publish the release with the evidence attached
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          name: NebuLens ${{ steps.ver.outputs.plain }}
+          generate_release_notes: true
+          body: |
+            **Image:** `${{ env.IMAGE }}:${{ steps.ver.outputs.plain }}` (digest `${{ steps.build.outputs.digest }}`), signed with Sigstore keyless signing.
+
+            Verify the signature:
+            ```
+            cosign verify ${{ env.IMAGE }}:${{ steps.ver.outputs.plain }} \
+              --certificate-identity-regexp '^https://github.com/${{ github.repository }}/' \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+            ```
+            Attached: SBOM (CycloneDX and SPDX) and a vulnerability report (SARIF). Upgrade notes: UPGRADE.md.
+          files: |
             nebulens-sbom.cdx.json
             nebulens-sbom.spdx.json
             nebulens-vulns.sarif
