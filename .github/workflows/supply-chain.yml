@@ -74,6 +74,16 @@ jobs:
           output-format: sarif
           output-file: nebulens-vulns.sarif
 
+      # Gate: a high or critical issue that HAS a fix must not ship (rebuild picks up the fix). Issues with no fix yet
+      # stay in the report above for reviewers.
+      - uses: anchore/scan-action@1638637db639e0ade3258b51db49a9a137574c3e # v6.5.1
+        with:
+          image: ${{ env.IMAGE }}:${{ github.ref_name }}
+          only-fixed: true
+          fail-build: true
+          severity-cutoff: high
+          output-format: table
+
       # Keyless signature, verifiable with:
       #   cosign verify ghcr.io/<repo>:<tag> \
       #     --certificate-identity-regexp '^https://github.com/<repo>/' \

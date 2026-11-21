@@ -44,9 +44,9 @@ python server.py                     # UI and OTLP endpoint on http://localhost:
 On Kubernetes:
 
 ```bash
-docker build -t <your-registry>/nebulens:11.8 . && docker push <your-registry>/nebulens:11.8
+# signed image from the release (SBOM + vulnerability report attached): ghcr.io/syedammarsuhail/nebulens:11.8
 helm install nebulens ./helm/nebulens -n observability --create-namespace \
-  --set image.repository=<your-registry>/nebulens --set-string image.tag=11.8 \
+  --set image.repository=ghcr.io/syedammarsuhail/nebulens --set-string image.tag=11.8 \
   --set auth.token=$(openssl rand -hex 24)
 ```
 

@@ -38,12 +38,20 @@ cd nebulens-v11_8
 
 Run every command below from this folder.
 
-## 3. Build the image
+## 3. Get the image
+
+**Use the published image (recommended).** Every release is built in CI, signed with Sigstore and shipped with an SBOM
+and a vulnerability report on its [GitHub release](https://github.com/syedammarsuhail/nebulens/releases):
 
 ```bash
-docker build -t registry.example.com/nebulens:11.8 .
-docker push registry.example.com/nebulens:11.8        # skip if you run on this same machine
+docker pull ghcr.io/syedammarsuhail/nebulens:11.8
+# optional: check the signature before you deploy
+cosign verify ghcr.io/syedammarsuhail/nebulens:11.8   --certificate-identity-regexp '^https://github.com/syedammarsuhail/nebulens/'   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
+
+The Helm chart uses this image by default. To use your own registry instead, mirror it
+(`docker tag ghcr.io/syedammarsuhail/nebulens:11.8 registry.example.com/nebulens:11.8 && docker push registry.example.com/nebulens:11.8`)
+or build it from this folder (`docker build -t registry.example.com/nebulens:11.8 .`), and pass `--set image.repository=registry.example.com/nebulens`.
 
 No registry (air-gapped)? Save the image to a file and import it on each node: see [ON-PREM.md](ON-PREM.md) section 1.
 
@@ -69,7 +77,7 @@ Pick **one**.
 TOKEN=<the token from step 4>
 helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml \
-  --set image.repository=registry.example.com/nebulens \
+  --set image.repository=ghcr.io/syedammarsuhail/nebulens \
   --set-string image.tag=11.8 --set image.pullPolicy=Always \
   --set persistence.storageClass=local-path \
   --set auth.token=$TOKEN \
@@ -88,7 +96,7 @@ agent (here 10 every 5 minutes); everything else stays on eBPF with no restart.
 ```bash
 helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
   -f helm/nebulens/values-baremetal.yaml -f helm/nebulens/values-full.yaml \
-  --set image.repository=registry.example.com/nebulens \
+  --set image.repository=ghcr.io/syedammarsuhail/nebulens \
   --set-string image.tag=11.8 --set image.pullPolicy=Always \
   --set persistence.storageClass=local-path \
   --set auth.token=$TOKEN \
@@ -125,7 +133,7 @@ kubectl -n observability port-forward svc/nebulens 4318:4318      # then http://
 
 ```bash
 cd deploy/vm
-cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=registry.example.com/nebulens:11.8
+cp .env.example .env        # set NEBULENS_TOKEN to your token, and NEBULENS_IMAGE=ghcr.io/syedammarsuhail/nebulens:11.8
 docker compose up -d
 docker compose ps           # both services should be running / healthy
 ```
@@ -181,7 +189,7 @@ and cluster metrics, and the **Kubernetes** page fills, without changing any app
   ```bash
   helm upgrade --install nebulens ./helm/nebulens -n observability --create-namespace \
     -f ./helm/nebulens/values-baremetal.yaml -f ./helm/nebulens/values-full.yaml \
-    --set image.repository=registry.example.com/nebulens --set-string image.tag=11.8 \
+    --set image.repository=ghcr.io/syedammarsuhail/nebulens --set-string image.tag=11.8 \
     --set persistence.storageClass=local-path \
     --set auth.token=$(openssl rand -hex 24) \
     --set "autoInstrumentation.autoInject.namespaces={shop,payments}" \
