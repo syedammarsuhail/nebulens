@@ -271,7 +271,7 @@ messages, log lines) are sent to that provider.
 | Retention | Up to 7 days | Your choice | Your choice |
 | SSO (OIDC) with viewer / editor / admin roles, audit log | No | Yes | Yes |
 | Per-environment access, audit log streamed to a SIEM (syslog) | No | No | Yes |
-| Support | Community | Email, next business day | Business-hours SLA |
+| Support | Community | Email | Priority, response targets in your contract |
 
 Prices: [pricing page](https://syedammarsuhail.github.io/nebulens/pricing.html). A new install gets a 14-day Pro trial; afterwards NebuLens keeps running as Community and
 nothing is deleted. Going over your node count shows a banner; data is never refused.

@@ -1,0 +1,26 @@
+name: Pro / Enterprise licence request
+description: Ask for a quote, a trial extension or a design-partner place. This issue is public; leave out anything confidential and we will follow up privately.
+title: "Licence request: <company>"
+labels: ["sales"]
+body:
+  - type: dropdown
+    id: plan
+    attributes:
+      label: Plan
+      options: ["Pro", "Enterprise", "Design partner programme", "Not sure yet"]
+    validations: { required: true }
+  - type: input
+    id: nodes
+    attributes:
+      label: Roughly how many nodes?
+      placeholder: "e.g. 12 Kubernetes nodes across 2 clusters"
+  - type: textarea
+    id: needs
+    attributes:
+      label: What do you need?
+      description: For example SSO, longer retention, air-gapped install, compliance (HIPAA, SOC 2), timeline.
+  - type: input
+    id: contact
+    attributes:
+      label: How should we reach you privately?
+      description: A work email or LinkedIn profile. Optional; you can also just reply here.

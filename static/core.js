@@ -101,7 +101,7 @@
     const benefits = isEnt ? [
       ["Per-environment access", "Decide who sees production and who sees test"],
       ["Audit log to your SIEM", "Stream every change to Splunk, QRadar or any syslog collector"],
-      ["Air-gapped install and support", "Offline licence, supported install, business-hours SLA"],
+      ["Air-gapped install and support", "Offline licence, supported install, priority support"],
       ["Everything in Pro", "Unlimited nodes, retention, dashboards, alerts and AI answers, SSO and roles"],
     ] : [
       ["Unlimited nodes and clusters", "Community covers one cluster of up to 5 nodes"],
@@ -109,7 +109,7 @@
       ["Unlimited dashboards, alerts, SLOs and synthetics", "No caps"],
       ["SSO (OIDC) with roles", "Viewer, editor and admin, with an audit log"],
       ["Unlimited AI answers", "With the model you choose: Claude, OpenAI, or one you host"],
-      ["Email support", "Next business day"],
+      ["Email support", "From the NebuLens team"],
     ];
     const list = el("div", { class: "upgrade-benefits" },
       ...benefits.map(([t, d]) => el("div", { class: "ub-row" },

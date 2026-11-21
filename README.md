@@ -5,7 +5,7 @@ from every service, shown as live signals so you see traffic waves, latency spik
 
 **Website:** https://syedammarsuhail.github.io/nebulens/ ([developers](https://syedammarsuhail.github.io/nebulens/developers.html) · [enterprise](https://syedammarsuhail.github.io/nebulens/enterprise.html) · [product tour](https://syedammarsuhail.github.io/nebulens/tour.html) · [AI](https://syedammarsuhail.github.io/nebulens/ai.html))
 
-One OTLP endpoint (`:4318`), one web UI, your own infrastructure. No per-host or per-GB pricing, and your telemetry never leaves
+One OTLP endpoint (`:4318`), one web UI, your own infrastructure. Predictable per-node pricing with no per-GB, per-span or per-seat fees, and your telemetry never leaves
 your network.
 
 ## What you get
