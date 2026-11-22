@@ -32,7 +32,15 @@ def test_expired_tampered_and_foreign_keys_are_rejected(srv):
 def test_no_environment_switch_unlocks_pro():
     # NEBULENS_TIER=pro used to unlock Pro with no licence; outside the test suite only a signed key counts
     import tempfile
-    base = {k: v for k, v in os.environ.items() if not k.startswith(("NEBULENS_LICENSE", "NEBULENS_TEST_LICENSE"))}
+    # This checks a fresh SQLite install's trial logic, so strip NEBULENS_DATABASE_URL/NEBULENS_PG_SCHEMA too:
+    # under the Postgres CI job those would make the subprocess ignore NEBULENS_DB below and read trial_start
+    # from the suite's own (recent, not-yet-expired) Postgres schema instead.
+    # server.py also mirrors every NEBULENS_* var onto old-prefixed aliases (OSCILYX_, PULSE0_) and back, so a
+    # bare prefix filter on NEBULENS_DATABASE_URL isn't enough once the in-process `srv` fixture has already
+    # imported server.py under Postgres: drop any alias of DATABASE_URL/PG_SCHEMA under any product prefix.
+    base = {k: v for k, v in os.environ.items()
+            if not k.startswith(("NEBULENS_LICENSE", "NEBULENS_TEST_LICENSE"))
+            and not k.endswith(("DATABASE_URL", "PG_SCHEMA"))}
     import sqlite3
     db = os.path.join(tempfile.mkdtemp(), "expired.db")      # an install whose 14-day trial ended long ago
     c = sqlite3.connect(db); c.execute("CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT)")

@@ -51,7 +51,9 @@ def test_slow_query_is_stopped_with_503(client, srv, monkeypatch):
 
     def slow_ops(service, minutes=60):
         # a deliberately expensive read (recursive CTE) that the progress handler must interrupt
-        srv.qrows("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c LIMIT 50000000) SELECT SUM(x) FROM c")
+        # bound recursion with a WHERE clause (portable); SQLite's "LIMIT inside the recursive term" trick
+        # isn't valid syntax in Postgres ("LIMIT in a recursive query is not implemented")
+        srv.qrows("WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x < 50000000) SELECT SUM(x) FROM c")
         return []
     monkeypatch.setattr(srv, "operations", slow_ops)
     route = [r for r in srv.app.routes if getattr(r, "path", "") == "/api/operations"][0]

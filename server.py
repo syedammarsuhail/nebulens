@@ -50,8 +50,12 @@ PG_SCHEMA = os.environ.get("NEBULENS_PG_SCHEMA", "")
 if USE_PG:
     import psycopg
     from psycopg.rows import dict_row
+    from psycopg.types.numeric import FloatLoader
     from psycopg_pool import ConnectionPool
     _IntegrityError = (sqlite3.IntegrityError, psycopg.errors.UniqueViolation)
+    # SQLite's SUM()/AVG() return int/float; Postgres returns Decimal for NUMERIC. Code throughout this file
+    # mixes those results into plain float arithmetic, so decode NUMERIC as float everywhere to match SQLite.
+    psycopg.adapters.register_loader("numeric", FloatLoader)
 else:
     _IntegrityError = sqlite3.IntegrityError
 STATIC = os.path.join(os.path.dirname(__file__), "static")
@@ -306,7 +310,9 @@ def _pg_sql(sql):
     """Translate SQLite-flavoured SQL to Postgres dialect."""
     if not USE_PG:
         return sql
-    # Parameter placeholders: ? -> %s (but not inside strings)
+    # Parameter placeholders: ? -> %s (but not inside strings). psycopg parses the whole query for %-style
+    # placeholders, so a literal '%' (e.g. inside a LIKE pattern like '%cpu%') must be doubled to '%%' first,
+    # or psycopg misreads fragments like '%c' as an invalid placeholder.
     out, i, in_str = [], 0, False
     while i < len(sql):
         ch = sql[i]
@@ -315,6 +321,8 @@ def _pg_sql(sql):
             out.append(ch)
         elif ch == '?' and not in_str:
             out.append('%s')
+        elif ch == '%':
+            out.append('%%')
         else:
             out.append(ch)
         i += 1
@@ -1625,6 +1633,11 @@ async def _qtimeout(request: Request, exc: Exception):
     raise exc
 
 
+if USE_PG:
+    # Postgres cancels a timed-out statement with its own exception type (not sqlite3.OperationalError)
+    app.add_exception_handler(psycopg.errors.QueryCanceled, _qtimeout)
+
+
 @app.exception_handler(HTTPException)
 async def _hexc(request: Request, exc: HTTPException):
     if isinstance(exc.detail, dict) and "error" in exc.detail:
@@ -2497,12 +2510,18 @@ READ_TOKEN = os.environ.get("NEBULENS_READ_TOKEN", "")
 INGEST_TOKEN = os.environ.get("NEBULENS_INGEST_TOKEN", "")
 # Regulated buyers keep audit trails for years. 0 disables deletion entirely (keep forever).
 AUDIT_DAYS = float(os.environ.get("NEBULENS_AUDIT_RETENTION_DAYS", "90"))
+_process_session_secret = None  # cache for the per-process fallback below, so repeated calls agree within one run
+
+
 def _load_session_secret():
     """NEBULENS_SESSION_SECRET if set. Otherwise a random secret kept in a 0600 file beside the SQLite database, so SSO
     sessions survive a restart (Postgres and read-only volumes fall back to a per-process secret)."""
+    global _process_session_secret
     env = os.environ.get("NEBULENS_SESSION_SECRET")
     if env:
         return env.encode()
+    if _process_session_secret is not None:
+        return _process_session_secret
     if not USE_PG:
         path = DB_PATH + ".session-secret"
         try:
@@ -2520,7 +2539,8 @@ def _load_session_secret():
             return v.encode()
         except OSError:
             pass
-    return secrets.token_hex(32).encode()
+    _process_session_secret = secrets.token_hex(32).encode()
+    return _process_session_secret
 
 
 _SESSION_SECRET = _load_session_secret()
@@ -3208,7 +3228,7 @@ def resource_attrs(svc: str):
 def operations(service: str, minutes: float = 60):
     t0 = since_ns(minutes)
     if _ops_ready(minutes):
-        return [{"name": nm, "n": int(n), "err": int(e or 0), "avg_ms": float(ds or 0) / n if n else 0, "max_ms": float(mx or 0)}
+        return [{"name": nm, "n": int(n), "err": int(e or 0), "avg_ms": float(ds or 0) / float(n) if n else 0, "max_ms": float(mx or 0)}
                 for nm, n, e, ds, mx in qrows("SELECT name, SUM(n), SUM(err), SUM(dur_sum), MAX(dur_max) FROM op_rollup "
                                               "WHERE service=? AND minute>=? GROUP BY name ORDER BY SUM(n) DESC LIMIT 100",
                                               (service, t0 // 60_000_000_000))]

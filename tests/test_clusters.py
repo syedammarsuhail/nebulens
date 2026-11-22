@@ -46,7 +46,7 @@ def test_ingest_is_bound_to_the_cluster_whatever_the_sender_claims(client, srv):
     assert r.status_code == 200, r.text
     row = srv.q("SELECT env, res FROM logs WHERE body=?", (body,))[0]
     assert row["env"] == "bound-east"                                  # not "production", not another cluster's slug
-    res = json.loads(row["res"])
+    res = srv._jload(row["res"])          # Postgres JSONB arrives as a dict already; SQLite TEXT is a string
     assert res["k8s.cluster.name"] == "bound-east"                     # overwritten with the registered name
     lst = client.get("/api/clusters", headers=AUTH).json()["clusters"]
     me = next(x for x in lst if x["slug"] == "bound-east")
@@ -84,7 +84,7 @@ def test_rename_keeps_slug_and_restamps(client, srv):
     assert client.patch("/api/clusters/rename-me", json={"name": "Renamed Cluster"}, headers=AUTH).status_code == 200
     client.post("/v1/logs", json=_otlp_log("rename-marker"), headers=_bearer(c["token"]))
     row = srv.q("SELECT env, res FROM logs WHERE body=?", ("rename-marker",))[0]
-    assert row["env"] == "rename-me" and json.loads(row["res"])["k8s.cluster.name"] == "Renamed Cluster"
+    assert row["env"] == "rename-me" and srv._jload(row["res"])["k8s.cluster.name"] == "Renamed Cluster"
 
 
 def test_cluster_appears_as_an_environment(client):
