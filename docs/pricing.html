@@ -60,6 +60,18 @@ header p{color:var(--muted);font-size:18px;max-width:40em;margin:16px auto 0}
 .partner a{color:var(--accent-2);font-weight:600;margin-left:6px}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 @media (max-width:900px){.plans{grid-template-columns:1fr}}
+.managed{border:1px solid var(--line);border-radius:18px;padding:28px 30px;background:var(--panel);display:grid;grid-template-columns:1.3fr 1fr;gap:28px;align-items:center}
+.managed h3{font-size:22px;margin-bottom:8px}
+.managed .kicker{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent-2);margin-bottom:6px;display:block}
+.managed p{color:var(--muted);margin-bottom:14px}
+.managed ul{list-style:none;margin:0 0 18px;padding:0;display:grid;gap:8px;font-size:14.5px}
+.managed li{display:grid;grid-template-columns:18px 1fr;gap:8px;color:var(--muted)}
+.managed li::before{content:"";width:8px;height:8px;margin-top:8px;border-radius:50%;background:var(--accent-2)}
+.managed li b{color:var(--text);font-weight:600}
+.managed .side{border-left:1px solid var(--line);padding-left:28px;display:grid;gap:14px;align-content:center}
+.managed .side .price{font:700 28px var(--display)}
+.managed .side .price small{display:block;font:400 13px var(--body);color:var(--muted);margin-top:4px}
+@media (max-width:760px){.managed{grid-template-columns:1fr}.managed .side{border-left:0;border-top:1px solid var(--line);padding-left:0;padding-top:18px}}
 section{padding-block:56px;border-top:1px solid var(--line)}
 section h2{font-size:clamp(26px,3.4vw,36px);margin-bottom:10px}
 .sub{color:var(--muted);margin-bottom:26px;max-width:46em}
@@ -151,8 +163,28 @@ footer a{color:var(--dim);text-decoration:none}
   </div>
 </div>
 
+<div class="wrap">
+  <div class="managed">
+    <div>
+      <span class="kicker">For teams who don't want to run it</span>
+      <h3>NebuLens Cloud (Managed, by request)</h3>
+      <p>Same product as Pro, hosted and operated by us. You get your own isolated project with scoped API keys; no server for you to patch, back up or scale.</p>
+      <ul>
+        <li><span><b>Everything in Pro</b>: unlimited dashboards, alerts, SLOs, synthetic checks, SSO, audit log</span></li>
+        <li><span>Your data kept in its own isolated project, separate from every other customer's</span></li>
+        <li><span>We handle upgrades, backups and uptime</span></li>
+        <li><span>Early-access concierge rollout: we provision your account by hand and agree a data-residency region with you before you send a byte</span></li>
+      </ul>
+    </div>
+    <div class="side">
+      <div class="price">Custom<small>priced on your node count and retention; ask for a quote</small></div>
+      <a class="btn primary" href="mailto:sales@nebulens.dev?subject=NebuLens%20Cloud%20(managed)&body=Company%3A%0AApprox.%20nodes%2Fdata%20volume%3A%0APreferred%20region%3A%0AWhat%20we%20need%3A%0A">Ask about managed hosting</a>
+    </div>
+  </div>
+</div>
+
 <section id="calculator"><div class="wrap">
-  <h2>What would Pro cost you?</h2>
+  <h2>What would Pro cost you to self-host?</h2>
   <p class="sub">A node is one Kubernetes node, or one VM running workloads you monitor. Count your nodes and move the slider.</p>
   <div class="calc">
     <div>
@@ -210,6 +242,7 @@ footer a{color:var(--dim);text-decoration:none}
     <details><summary>How do I buy or ask a question?</summary><p>Email <b>sales@nebulens.dev</b> with your company, node count and needs; you get a quote and a licence key, usually within one business day. Prefer GitHub? <a href="https://github.com/syedammarsuhail/nebulens/issues/new?template=pro-enquiry.yml">Open a request there</a> (public).</p></details>
     <details><summary>Can I pay monthly?</summary><p>Yes. Pro is $129 a month billed monthly (5 nodes included, then $15 per node), or $99 a month billed annually (then $12 per node). Cancel a monthly plan any time; the licence runs to the end of the month you paid for.</p></details>
     <details><summary>Are there discounts?</summary><p>Startups (under 3 years old, under 30 people) get 50% off the first year. Our first 10 design partners get 40% off for two years in return for feedback and a case study.</p></details>
+    <details><summary>Do you offer a hosted/managed option?</summary><p>Yes, by request: <a href="mailto:sales@nebulens.dev?subject=NebuLens%20Cloud%20(managed)">email us</a> and we provision an isolated, managed instance for you and agree a data-residency region together. This is a concierge rollout right now (we set it up by hand, not instant self-serve signup), priced on your node count and retention. Self-hosting stays the default, free-forever option for everyone else.</p></details>
   </div>
 </div></section>
 
