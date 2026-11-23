@@ -8,7 +8,9 @@
 #   SNYK_TOKEN         from https://app.snyk.io/account
 #   SONAR_TOKEN        from SonarCloud (My Account -> Security)
 #   SONAR_ORGANIZATION and SONAR_PROJECT_KEY as repository *variables* (the SonarCloud organization and project key)
-# Without them the snyk / sonar jobs fail on purpose: an unscanned build must not be published.
+# Without SONAR_TOKEN (+ the two variables) the sonar job fails on purpose: an unscanned build must not be
+# published. Without SNYK_TOKEN the snyk job is skipped rather than failed, so a repo that hasn't set up Snyk
+# yet still gets a clean run signal; `image` still won't run without it, since skipped doesn't satisfy `needs`.
 name: Security gate
 
 on:
@@ -35,7 +37,19 @@ jobs:
       - run: pip install -r requirements.lock -r requirements-dev.txt
       - run: bash scripts/release-check.sh
 
+  snyk-check:
+    # Job-level `if:` can't see secrets directly, so a cheap first job reads it (never printed, only
+    # compared) and the real snyk job below runs only if that comparison was true.
+    runs-on: ubuntu-latest
+    outputs:
+      has_token: ${{ steps.check.outputs.has_token }}
+    steps:
+      - id: check
+        run: echo "has_token=${{ secrets.SNYK_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
   snyk:
+    needs: snyk-check
+    if: needs.snyk-check.outputs.has_token == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
