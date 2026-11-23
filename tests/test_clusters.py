@@ -130,6 +130,12 @@ def test_community_is_capped_at_one_cluster(srv, monkeypatch):
     db = os.path.join(tempfile.mkdtemp(), "nebulens.db")
     monkeypatch.setattr(srv, "DB_PATH", db)
     monkeypatch.setattr(srv, "_conn", srv._open_db(db))
+    # q()/qrows() branch on USE_PG, not on _conn, to decide whether to talk to the shared Postgres pool or a
+    # SQLite connection -- under the test-postgres CI job, USE_PG is True, so without also forcing it False
+    # here, the _conn monkeypatch above is a no-op and this "fresh" client actually shares the same Postgres
+    # schema (and its pre-existing clusters) as every other test in the suite. Found live: the very first
+    # "only-cluster" create got a 403 under that job, because it wasn't actually the first cluster at all.
+    monkeypatch.setattr(srv, "USE_PG", False)
     monkeypatch.setattr(srv, "IS_PRO", False)
     monkeypatch.setattr(srv, "IS_ENTERPRISE", False)
     monkeypatch.setattr(srv, "TIER", "community")
