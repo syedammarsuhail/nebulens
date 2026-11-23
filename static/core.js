@@ -155,7 +155,7 @@
     if (r.status === 400 && P.onProjectRequired) { const j = await r.clone().json().catch(() => ({})); if (j.error === "project_required") { P.onProjectRequired(j); throw new Error(j.message); } }
     if (r.status === 403) {
       const j = await r.clone().json().catch(() => ({}));
-      if (j.error === "tier_limit" || j.error === "pro_required") { upgradeModal(j); throw new TierError(j); }
+      if (j.error === "tier_limit" || j.error === "pro_required" || j.error === "enterprise_required") { upgradeModal(j); throw new TierError(j); }
     }
     if (!r.ok) {
       let m = r.statusText;
