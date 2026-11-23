@@ -75,3 +75,10 @@ Tracing with no code changes (needs the OpenTelemetry Operator):
 WARNING: no auth.token is set, so anyone who can reach NebuLens has ADMIN access to it and its data. Set one:
   helm upgrade {{ .Release.Name }} ./helm/nebulens -n {{ .Release.Namespace }} --reset-then-reuse-values --set auth.token=$(openssl rand -hex 24)
 {{- end }}
+{{- if and .Values.ingress.enabled (not .Values.ingress.tls) }}
+
+WARNING: ingress.enabled is on but ingress.tls is empty, so the UI (and your auth.token) is served over plain
+HTTP. This is fine only if something in front of this Ingress (a load balancer, a mesh) already terminates TLS
+for you -- otherwise set ingress.tls, or see values-eks.yaml/values-aks.yaml/values-openshift.yaml for overlays
+that already turn TLS on.
+{{- end }}

@@ -2709,7 +2709,7 @@ async def auth(request: Request, call_next):
         if bearer.startswith(CLUSTER_TOKEN_PREFIX):
             cl = await run_in_threadpool(_cluster_for_token, bearer)
             if cl is None:
-                return JSONResponse({"error": "unauthorized"}, status_code=401)
+                return _auth_fail(request)
             if cl["disabled"]:
                 return JSONResponse({"error": "cluster_disabled",
                                      "message": f"cluster '{cl['slug']}' is disabled in this NebuLens"}, status_code=403)
@@ -2719,13 +2719,13 @@ async def auth(request: Request, call_next):
             return await call_next(request)
         allowed = [t for t in (AUTH_TOKEN, INGEST_TOKEN) if t]
         if allowed and not any(_tok_eq(bearer, t) for t in allowed):
-            return JSONResponse({"error": "unauthorized"}, status_code=401)
+            return _auth_fail(request)
         return await call_next(request)
     if not path.startswith("/api/") or path in _PUBLIC_API or method == "OPTIONS":
         return await call_next(request)
     ident = _identify(request)
     if ident is None:
-        return JSONResponse({"error": "unauthorized", "sso": sso_enabled()}, status_code=401)
+        return _auth_fail(request, sso=sso_enabled())
     # Per-environment access control (Pro): restrict this request to the environments the caller's
     # SSO groups allow. Endpoints that cannot apply the filter are refused outright for restricted
     # callers, so a scoped user can never read another environment's telemetry through a side door.
@@ -2778,7 +2778,7 @@ def _db_busy(e):
             or "deadlock detected" in msg or "database is locked" in msg)
 
 
-async def _otlp(request: Request, name, mod, fn):
+async def _otlp(request: Request, name, mod, fn, kind):
     try:
         raw = await request.body()
     except ClientDisconnect:
@@ -2801,6 +2801,18 @@ async def _otlp(request: Request, name, mod, fn):
         raise
     except Exception as e:
         raise HTTPException(400, f"bad OTLP payload: {e}")
+    ident, reserved = getattr(request.state, "ident", None), 0
+    if HOSTED:
+        # Reserve capacity against the org's daily cap BEFORE inserting anything, atomically with the
+        # admission check (see _reserve_usage) -- this is the authoritative quota gate; the middleware's
+        # earlier check is just a cheap fast-path that avoids parsing a request from an org already over cap.
+        ok, reserved = _reserve_usage(ident, kind, _otlp_precount(d, kind))
+        if not ok:
+            if ident:
+                pexec("INSERT INTO usage(project_id,day,rejected) VALUES(?,?,1) ON CONFLICT(project_id,day) "
+                      "DO UPDATE SET rejected=rejected+1", (ident["project_id"], _today()))
+            return JSONResponse({"error": "quota_exceeded", "message": "this organization's daily ingest cap is reached"},
+                                status_code=429, headers={"Retry-After": str(_seconds_to_midnight())})
     for attempt in range(4):
         try:
             n = await run_in_threadpool(fn, d)  # JSON decode + SQLite insert must not block the event loop
@@ -2816,23 +2828,23 @@ async def _otlp(request: Request, name, mod, fn):
                 raise HTTPException(503, f"database busy, retry: {type(e).__name__}", headers={"Retry-After": "1"})
             raise HTTPException(400, f"bad OTLP payload: {e}")
     if HOSTED:
-        _usage_add(getattr(request.state, "ident", None), fn.__name__, n or 0)
+        _usage_reconcile(ident, kind, reserved, n or 0)
     return {"partialSuccess": {}}
 
 
 @app.post("/v1/traces")
 async def v1_traces(r: Request):
-    return await _otlp(r, "ExportTraceServiceRequest", "opentelemetry.proto.collector.trace.v1.trace_service_pb2", ingest_traces)
+    return await _otlp(r, "ExportTraceServiceRequest", "opentelemetry.proto.collector.trace.v1.trace_service_pb2", ingest_traces, "traces")
 
 
 @app.post("/v1/logs")
 async def v1_logs(r: Request):
-    return await _otlp(r, "ExportLogsServiceRequest", "opentelemetry.proto.collector.logs.v1.logs_service_pb2", ingest_logs)
+    return await _otlp(r, "ExportLogsServiceRequest", "opentelemetry.proto.collector.logs.v1.logs_service_pb2", ingest_logs, "logs")
 
 
 @app.post("/v1/metrics")
 async def v1_metrics(r: Request):
-    return await _otlp(r, "ExportMetricsServiceRequest", "opentelemetry.proto.collector.metrics.v1.metrics_service_pb2", ingest_metrics)
+    return await _otlp(r, "ExportMetricsServiceRequest", "opentelemetry.proto.collector.metrics.v1.metrics_service_pb2", ingest_metrics, "metrics")
 
 
 @app.get("/healthz")
@@ -5599,7 +5611,7 @@ def _client_ip(request):
     return (request.client.host if request.client else "?")[:64]
 
 
-def _auth_fail(request):
+def _auth_fail(request, **extra):
     """401, or 429 once an IP has failed too often. Valid keys are never throttled, so a noisy
     attacker behind a shared proxy IP cannot lock real users out."""
     if len(_FAILS) > 10000:
@@ -5610,7 +5622,7 @@ def _auth_fail(request):
     if len(d) >= FAIL_LIMIT:
         return JSONResponse({"error": "too_many_attempts"}, status_code=429, headers={"Retry-After": str(FAIL_WINDOW)})
     d.append(now)
-    return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return JSONResponse({"error": "unauthorized", **extra}, status_code=401)
 
 
 def _org_used_today(org_id):
@@ -5618,15 +5630,65 @@ def _org_used_today(org_id):
               "WHERE p.org_id=? AND u.day=?", (org_id, _today()))[0]["n"]
 
 
-_USAGE_COLS = {"ingest_traces": "spans", "ingest_logs": "logs", "ingest_metrics": "metrics"}
+def _otlp_precount(d, kind):
+    """How many rows the matching ingest_* call will produce, without doing the insert -- counted the same way
+    each ingest_* function counts its own `len(rows)` return value (one row per span / log record / metric
+    data point), so this always matches what actually gets stored."""
+    if kind == "traces":
+        return sum(len(ss.get("spans", [])) for rs in d.get("resourceSpans", []) for ss in rs.get("scopeSpans", []))
+    if kind == "logs":
+        return sum(len(sl.get("logRecords", [])) for rl in d.get("resourceLogs", []) for sl in rl.get("scopeLogs", []))
+    if kind == "metrics":
+        n = 0
+        for rm in d.get("resourceMetrics", []):
+            for sm in rm.get("scopeMetrics", []):
+                for m in sm.get("metrics", []):
+                    for mtype in ("gauge", "sum", "histogram", "exponentialHistogram", "summary"):
+                        if mtype in m:
+                            n += len(m[mtype].get("dataPoints", []))
+        return n
+    return 0
 
 
-def _usage_add(ident, fn_name, n):
-    col = _USAGE_COLS.get(fn_name)
-    if not ident or not ident.get("project_id") or not col or not n:
+_OTLP_KIND_COL = {"traces": "spans", "logs": "logs", "metrics": "metrics"}
+
+
+def _reserve_usage(ident, kind, n):
+    """Atomically check the org's daily cap against (today's usage + n) and, if it fits, immediately commit n
+    against today's usage -- in one _plat_lock-held step, called BEFORE the batch is inserted (with n from
+    _otlp_precount, not the final count).
+    Found in a security audit: the previous design checked the cap in middleware before the request body was
+    even read, then recorded usage only after the whole batch was parsed and inserted (in _otlp, well after
+    the check). Concurrent requests all read the same stale "used today" in the gap between those two points;
+    a 20-way concurrent burst against a cap of 50 landed 210 items (4.2x over) before any of the 429s caught up.
+    Reserving the estimated count up front, atomically with the admission check, closes that window: the cap
+    is now enforced against committed reservations, not a snapshot that's already stale by the time it's read."""
+    if not ident or not ident.get("project_id") or not n:
+        return True, 0
+    col = _OTLP_KIND_COL[kind]
+    cap, pid, org_id, day = ident.get("daily_cap"), ident["project_id"], ident["org_id"], _today()
+    with _plat_lock:
+        if cap is not None:
+            used = _plat.execute("SELECT COALESCE(SUM(spans+logs+metrics),0) FROM usage u JOIN projects p "
+                                  "ON p.id=u.project_id WHERE p.org_id=? AND u.day=?", (org_id, day)).fetchone()[0]
+            if used + n > cap:
+                return False, 0
+        _plat.execute(f"INSERT INTO usage(project_id,day,{col}) VALUES(?,?,?) ON CONFLICT(project_id,day) "
+                      f"DO UPDATE SET {col}={col}+excluded.{col}", (pid, day, n))
+        _plat.commit()
+        return True, n
+
+
+def _usage_reconcile(ident, kind, reserved, actual):
+    """The reservation used an estimate (_otlp_precount, computed before insertion); true up the small, rare
+    mismatch against what actually got inserted (e.g. a partially malformed batch that stored fewer rows).
+    Erring toward the reservation when they differ is deliberately safe: at worst an org's recorded usage is
+    briefly a few rows higher than what's actually stored, never lower than what's enforced against its cap."""
+    delta = (actual or 0) - reserved
+    if not delta or not ident or not ident.get("project_id"):
         return
-    pexec(f"INSERT INTO usage(project_id,day,{col}) VALUES(?,?,?) ON CONFLICT(project_id,day) "
-          f"DO UPDATE SET {col}={col}+excluded.{col}", (ident["project_id"], _today(), int(n)))
+    col = _OTLP_KIND_COL[kind]
+    pexec(f"UPDATE usage SET {col}={col}+? WHERE project_id=? AND day=?", (delta, ident["project_id"], _today()))
 
 
 def _resolve_project(ident, request):

@@ -108,7 +108,7 @@ def test_sender_disconnect_is_not_a_server_error(srv):
         async def body(self):
             raise ClientDisconnect()
     before = srv._ingest_disconnects[0]
-    r = asyncio.run(srv._otlp(Gone(), "x", "y", lambda d: 0))
+    r = asyncio.run(srv._otlp(Gone(), "x", "y", lambda d: 0, "traces"))
     assert r.status_code == 400 and srv._ingest_disconnects[0] == before + 1
 
 

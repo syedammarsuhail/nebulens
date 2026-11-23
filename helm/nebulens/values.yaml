@@ -233,6 +233,7 @@ collector:
     namespaces: []          # e.g. [application]
   podSecurityContext: {}
   securityContext:
+    runAsNonRoot: true
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
     capabilities:
@@ -290,7 +291,8 @@ ebpf:
   tolerations: []             # e.g. [{operator: Exists}] to run on tainted nodes too
   resources:
     requests: { cpu: 50m, memory: 128Mi }
-    limits: { memory: 512Mi }
+    limits: { cpu: 1000m, memory: 512Mi }   # a CPU limit keeps a busy node's kernel-tracing agent from
+                                            # starving every other pod on that node (it has no cap otherwise)
 
 # One-command zero-code tracing: install the OpenTelemetry Operator together with NebuLens.
 # Do NOT enable this if the Operator is already installed on the cluster (two copies conflict).

@@ -68,6 +68,7 @@ collector:
   podSecurityContext:
     runAsUser: 0
   securityContext:
+    runAsNonRoot: false   # overrides the base chart's default: this container must run as root here (see above)
     readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
     capabilities:

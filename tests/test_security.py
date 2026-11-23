@@ -25,6 +25,25 @@ def test_redirects_into_the_metadata_service_are_not_followed(srv):
     assert h.redirect_request(req, None, 302, "Found", {}, "https://example.com/next") is not None
 
 
+def test_self_hosted_auth_failures_are_rate_limited(client, srv):
+    """FAIL_LIMIT/_auth_fail already existed for hosted mode's /org/* key checks but, found in a security
+    review, were never wired into the self-hosted /v1 and /api token/session check -- the path almost every
+    real install actually uses -- so wrong-token attempts never got throttled or even counted. A bad guess just
+    silently 401'd at full network speed with no operator-visible signal."""
+    try:
+        seen_429 = False
+        for i in range(srv.FAIL_LIMIT + 5):
+            r = client.get("/api/services", headers={"Authorization": f"Bearer wrong-token-{i}"})
+            if r.status_code == 429:
+                seen_429 = True
+                assert r.json()["error"] == "too_many_attempts" and "Retry-After" in r.headers
+                break
+            assert r.status_code == 401
+        assert seen_429, "wrong tokens were never throttled after FAIL_LIMIT attempts"
+    finally:
+        srv._FAILS.clear()          # don't leak this test's rate-limit state into whatever test runs next
+
+
 def test_synthetic_check_to_metadata_records_a_block_not_a_request(srv, monkeypatch):
     called = []
     monkeypatch.setattr(srv, "_urlopen", lambda *a, **k: called.append(1))

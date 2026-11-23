@@ -266,6 +266,51 @@ def test_signup_with_a_non_json_content_type_fails_cleanly_not_with_a_500(hclien
     assert r.status_code < 500, r.text
 
 
+# ---------------------------------------------------------------- ingest quota: concurrent-burst race (security audit)
+def test_concurrent_ingest_cannot_overshoot_the_daily_cap(hclient):
+    """Found live by a security audit: the old design checked the cap in middleware before the request body
+    was even read, then recorded usage only after the whole batch was parsed and inserted -- concurrent
+    requests all read the same stale "used today" in that gap. A 20-way concurrent burst against a cap of 50
+    landed 210 spans (4.2x over). Fixed by reserving each batch's pre-counted size atomically with the
+    admission check (_reserve_usage), before any insert happens."""
+    import concurrent.futures
+
+    out = _signup(hclient, email="racer-quota@example.com", org="Racer Quota Co")
+    admin_key = out["admin_key"]["key"]
+    AUTH = {"Authorization": f"Bearer {admin_key}"}
+
+    # A low cap, set by the platform admin (NEBULENS_ADMIN_TOKEN), low enough that a handful of 30-span
+    # batches firing concurrently would overshoot it many times over under the old design.
+    r = hclient.patch(f"/admin/orgs/{out['org_id']}", json={"daily_cap": 50},
+                      headers={"Authorization": "Bearer test-admin-token"})
+    assert r.status_code == 200, r.text
+
+    proj = hclient.post("/org/projects", json={"name": "quota-race"}, headers=AUTH).json()
+    ikey = hclient.post("/org/keys", json={"type": "ingest", "name": "race-key", "project_id": proj["id"]},
+                        headers=AUTH).json()["key"]
+    IAUTH = {"Authorization": f"Bearer {ikey}"}
+
+    def _span_body(i):
+        now = time.time_ns()
+        spans = [{"traceId": f"{i:032x}", "spanId": f"{j:016x}", "name": "op", "kind": 2,
+                  "startTimeUnixNano": str(now), "endTimeUnixNano": str(now + 1_000_000)} for j in range(30)]
+        return {"resourceSpans": [{"resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "racer"}}]},
+                                   "scopeSpans": [{"spans": spans}]}]}
+
+    def attempt(i):
+        return hclient.post("/v1/traces", json=_span_body(i), headers=IAUTH)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+        results = list(ex.map(attempt, range(20)))
+
+    accepted = sum(1 for r in results if r.status_code == 200)
+    rejected = sum(1 for r in results if r.status_code == 429)
+    assert accepted + rejected == 20
+    usage = hclient.get("/org/usage", headers=AUTH).json()
+    used_today = sum(p["today"]["spans"] for p in usage["projects"])
+    assert used_today <= 50, f"overshot the cap: {used_today} spans recorded against a cap of 50 ({accepted} requests accepted)"
+
+
 # ---------------------------------------------------------------- self-hosted mode must not expose any of this
 def test_self_hosted_server_does_not_expose_signup_or_billing(client):
     """`client` here is the main suite's self-hosted TestClient (conftest.py), not the hosted one above --
