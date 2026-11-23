@@ -13,6 +13,7 @@ This guide takes you from nothing to a working install with data. It takes about
 | See every install option and setting in detail | [ON-PREM.md](ON-PREM.md) |
 | Run a demo for a client, or reset one | [DEMO.md](DEMO.md) |
 | Upgrade an existing install | [UPGRADE.md](UPGRADE.md) |
+| Run NebuLens as a hosted, multi-tenant service for other people's orgs (self-serve signup, Stripe billing) | [HOSTED.md](HOSTED.md) |
 
 ---
 
