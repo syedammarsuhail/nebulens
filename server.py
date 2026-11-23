@@ -6167,6 +6167,10 @@ async def billing_webhook(request: Request):
             None, "canceled", "unpaid", "incomplete_expired"):
         rows = pq("SELECT id FROM orgs WHERE stripe_customer_id=?", (obj.get("customer"),))
         if rows:
+            # Keep stripe_customer_id (so a later resubscribe reuses it and billing_portal still works), but
+            # clear stripe_subscription_id: otherwise /account/me's billing_active stayed true forever after a
+            # cancellation, since it was only ever set, never cleared, by this handler.
+            pexec("UPDATE orgs SET stripe_subscription_id=NULL WHERE id=?", (rows[0]["id"],))
             _apply_org_tier(rows[0]["id"], "free")
     return {"received": True}
 

@@ -181,13 +181,17 @@ def test_webhook_subscription_deleted_reverts_the_org_to_free(hclient):
         "metadata": {"org_id": out["org_id"], "tier": "enterprise"}}}}
     b1 = json.dumps(completed).encode()
     hclient.post("/billing/webhook", content=b1, headers={"stripe-signature": _stripe_sig(b1, WEBHOOK_SECRET)})
-    assert hclient.get("/account/me").json()["tier"] == "enterprise"
+    before = hclient.get("/account/me").json()
+    assert before["tier"] == "enterprise" and before["billing_active"] is True
 
     deleted = {"type": "customer.subscription.deleted", "data": {"object": {"customer": "cus_test_2"}}}
     b2 = json.dumps(deleted).encode()
     r = hclient.post("/billing/webhook", content=b2, headers={"stripe-signature": _stripe_sig(b2, WEBHOOK_SECRET)})
     assert r.status_code == 200
-    assert hclient.get("/account/me").json()["tier"] == "free"
+    after = hclient.get("/account/me").json()
+    # Found live (deployed container, real signed webhook, not just this test): billing_active stayed true
+    # forever after cancellation, because the handler updated tier but never cleared stripe_subscription_id.
+    assert after["tier"] == "free" and after["billing_active"] is False
 
 
 # ---------------------------------------------------------------- self-hosted mode must not expose any of this
