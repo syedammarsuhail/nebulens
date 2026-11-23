@@ -9,7 +9,7 @@ import collections, contextvars, hashlib, hmac, ipaddress, re, secrets
 from contextlib import contextmanager
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Request, HTTPException, Depends, Query
+from fastapi import FastAPI, Request, Response, HTTPException, Depends, Query
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
@@ -5377,6 +5377,85 @@ KEY_TYPES = {"ingest": "p0i_", "read": "p0r_", "admin": "p0a_"}
 FAIL_LIMIT = int(os.environ.get("NEBULENS_AUTH_FAIL_LIMIT", "20"))  # failed auths per IP per minute
 FAIL_WINDOW = 60
 
+# ---- hosted-mode self-serve signup + Stripe billing (inert unless HOSTED; also needs NEBULENS_STRIPE_SECRET_KEY
+# for the /billing/* endpoints specifically -- signup/login work without Stripe configured, orgs just stay "free").
+# Paid tiers' quotas reuse the same orgs.daily_cap/retention_hours columns the rest of hosted mode already reads,
+# so nothing else needs to change when a webhook moves an org between tiers.
+STRIPE_SECRET_KEY = os.environ.get("NEBULENS_STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("NEBULENS_STRIPE_WEBHOOK_SECRET", "")
+try:
+    # {"price_xxx": "pro", "price_yyy": "enterprise"} -- which Stripe Price a tier's Checkout button uses
+    STRIPE_PRICE_TIERS = json.loads(os.environ.get("NEBULENS_STRIPE_PRICE_TIERS", "") or "{}")
+except (json.JSONDecodeError, ValueError):
+    print("warning: NEBULENS_STRIPE_PRICE_TIERS is not valid JSON; ignoring it")
+    STRIPE_PRICE_TIERS = {}
+HOSTED_TIER_QUOTAS = {                              # 0 = unlimited, same convention OrgIn already uses
+    "free": {"daily_cap": DEFAULT_DAILY_CAP, "retention_hours": RETENTION_HOURS},
+    "pro": {"daily_cap": 0, "retention_hours": 24 * 30},
+    "enterprise": {"daily_cap": 0, "retention_hours": 24 * 365},
+}
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _hash_password(pw):
+    salt = secrets.token_bytes(16)
+    h = hashlib.scrypt(pw.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+    return "scrypt$" + salt.hex() + "$" + h.hex()
+
+
+def _verify_password(pw, stored):
+    try:
+        algo, salt_hex, hash_hex = (stored or "").split("$")
+        if algo != "scrypt":
+            return False
+        h = hashlib.scrypt(pw.encode(), salt=bytes.fromhex(salt_hex), n=2 ** 14, r=8, p=1, dklen=32)
+        return hmac.compare_digest(h.hex(), hash_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+def _stripe_request(path, form=None, method="POST"):
+    """Minimal form-encoded Stripe REST client (every Stripe endpoint accepts that). Tests replace this with a
+    fake Stripe, the same way _idp_request is replaced with a fake identity provider."""
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(503, {"error": "billing_not_configured", "message": "Billing is not set up on this install."})
+    data = urllib.parse.urlencode(form or {}, doseq=True).encode()
+    req = urllib.request.Request("https://api.stripe.com/v1/" + path, data=data if method == "POST" else None,
+                                  headers={"Authorization": "Bearer " + STRIPE_SECRET_KEY}, method=method)
+    try:
+        # Reviewed: URL is a fixed https://api.stripe.com/v1/ prefix, never user input.
+        with urllib.request.urlopen(req, timeout=15) as r:  # nosec B310
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        try:
+            body = json.loads(e.read())
+        except (json.JSONDecodeError, ValueError):
+            body = {}
+        raise HTTPException(502, {"error": "stripe_error", "message": body.get("error", {}).get("message", str(e))})
+
+
+def _verify_stripe_signature(payload, sig_header, secret):
+    """https://docs.stripe.com/webhooks#verify-manually -- HMAC-SHA256 over "{timestamp}.{payload}", and the
+    timestamp must be recent (replay protection)."""
+    try:
+        parts = dict(p.split("=", 1) for p in (sig_header or "").split(","))
+        t, v1 = parts["t"], parts["v1"]
+        expected = hmac.new(secret.encode(), f"{t}.{payload.decode()}".encode(), hashlib.sha256).hexdigest()
+        return hmac.compare_digest(expected, v1) and abs(time.time() - int(t)) < 300
+    except (KeyError, ValueError):
+        return False
+
+
+def _issue_org_session(resp, account, request):
+    resp.set_cookie("nl_org_session",
+                     _sign({"aid": account["id"], "org_id": account["org_id"], "email": account["email"],
+                            "exp": time.time() + 30 * 86400}),
+                     max_age=30 * 86400, httponly=True, samesite="lax", secure=_secure_cookie(request), path="/")
+
+
+def _org_session(request):
+    return _unsign(request.cookies.get("nl_org_session", ""))
+
 _PLAT_SCHEMA = """
 PRAGMA journal_mode=WAL;
 PRAGMA busy_timeout=5000;
@@ -5390,7 +5469,25 @@ CREATE TABLE IF NOT EXISTS api_keys(
 CREATE TABLE IF NOT EXISTS usage(
   project_id TEXT, day TEXT, spans INTEGER DEFAULT 0, logs INTEGER DEFAULT 0, metrics INTEGER DEFAULT 0,
   rejected INTEGER DEFAULT 0, PRIMARY KEY(project_id, day));
+CREATE TABLE IF NOT EXISTS accounts(
+  id TEXT PRIMARY KEY, org_id TEXT, email TEXT UNIQUE, password_hash TEXT, created INTEGER, last_login INTEGER);
 """
+# Columns added after some installs' platform.db already existed. Same ALTER-TABLE-if-missing pattern as
+# _migrate_env_column above, just against the hosted platform database instead of a tenant's own.
+_PLAT_ORGS_NEW_COLUMNS = (("tier", "TEXT NOT NULL DEFAULT 'free'"), ("stripe_customer_id", "TEXT"),
+                          ("stripe_subscription_id", "TEXT"))
+
+
+def _migrate_platform_schema(conn):
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(orgs)")}
+        for name, decl in _PLAT_ORGS_NEW_COLUMNS:
+            if cols and name not in cols:
+                conn.execute(f"ALTER TABLE orgs ADD COLUMN {name} {decl}")
+    except Exception as e:
+        print("platform schema migration:", e)
+
+
 _plat_lock = threading.Lock()
 _plat = None
 if HOSTED:
@@ -5398,6 +5495,8 @@ if HOSTED:
     _plat = sqlite3.connect(os.path.join(DATA_DIR, "platform.db"), check_same_thread=False)
     _plat.row_factory = sqlite3.Row
     _plat.executescript(_PLAT_SCHEMA)
+    _migrate_platform_schema(_plat)
+    _plat.commit()
 
 
 def pq(sql, args=()):
@@ -5763,6 +5862,26 @@ class KeyIn(BaseModel):
     project_id: Optional[str] = Field(default=None, pattern=r"^prj_[0-9a-f]{12}$")
 
 
+class SignupIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=8, max_length=200)
+    org_name: str = Field(min_length=2, max_length=64, pattern=_NAME)
+
+
+class LoginIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    password: str = Field(min_length=1, max_length=200)
+
+
+class CheckoutIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    price_id: str = Field(min_length=1, max_length=100)
+    success_url: str = Field(min_length=1, max_length=2000)
+    cancel_url: str = Field(min_length=1, max_length=2000)
+
+
 def _hosted_only():
     if not HOSTED:
         raise HTTPException(404, "Not Found")
@@ -5923,6 +6042,133 @@ def org_usage(request: Request):
 
 app.include_router(admin)
 app.include_router(org)
+
+
+# ---- self-serve signup, login and billing (hosted mode). These sit outside /admin, /org and /v1, so the
+# _hosted_auth middleware above passes them straight through untouched; each does its own auth: a signed
+# nl_org_session cookie (same _sign/_unsign HMAC the self-hosted SSO cookie already uses) for signup/login/
+# billing, and a verified Stripe-Signature header for the webhook. An /org/* admin API key is unrelated to this
+# session and still works exactly as before for CLI/CI use.
+def _apply_org_tier(org_id, tier):
+    q = HOSTED_TIER_QUOTAS.get(tier, HOSTED_TIER_QUOTAS["free"])
+    pexec("UPDATE orgs SET tier=?, daily_cap=?, retention_hours=? WHERE id=?",
+          (tier, q["daily_cap"] or None, q["retention_hours"], org_id))
+
+
+@app.post("/signup")
+def signup(body: SignupIn, request: Request, response: Response):
+    _hosted_only()
+    email = body.email.strip().lower()
+    if pq("SELECT 1 FROM accounts WHERE email=?", (email,)):
+        raise HTTPException(409, {"error": "email_taken", "message": "An account with this email already exists."})
+    oid = _new_id("org")
+    q = HOSTED_TIER_QUOTAS["free"]
+    try:
+        pexec("INSERT INTO orgs(id,name,created,daily_cap,retention_hours,tier) VALUES(?,?,?,?,?,?)",
+              (oid, body.org_name, int(time.time()), q["daily_cap"] or None, q["retention_hours"], "free"))
+    except _IntegrityError:
+        raise HTTPException(409, {"error": "org_name_taken", "message": f"An organization called '{body.org_name}' already exists."})
+    aid = _new_id("acct")
+    pexec("INSERT INTO accounts(id,org_id,email,password_hash,created,last_login) VALUES(?,?,?,?,?,?)",
+          (aid, oid, email, _hash_password(body.password), int(time.time()), int(time.time())))
+    admin_key = _mint_key(oid, "admin", "initial admin key")
+    _issue_org_session(response, {"id": aid, "org_id": oid, "email": email}, request)
+    return {"org_id": oid, "org_name": body.org_name, "email": email, "admin_key": admin_key}
+
+
+@app.post("/login")
+def login(body: LoginIn, request: Request, response: Response):
+    _hosted_only()
+    email = body.email.strip().lower()
+    rows = pq("SELECT * FROM accounts WHERE email=?", (email,))
+    if not rows or not _verify_password(body.password, rows[0]["password_hash"]):
+        raise HTTPException(401, {"error": "invalid_credentials", "message": "Wrong email or password."})
+    acct = rows[0]
+    pexec("UPDATE accounts SET last_login=? WHERE id=?", (int(time.time()), acct["id"]))
+    _issue_org_session(response, acct, request)
+    org = _need_org(acct["org_id"])
+    return {"org_id": acct["org_id"], "org_name": org["name"], "email": email}
+
+
+@app.post("/logout")
+def logout(response: Response):
+    _hosted_only()
+    response.delete_cookie("nl_org_session", path="/")
+    return {"ok": True}
+
+
+def _account_session(request):
+    """The verified nl_org_session for /account and /billing endpoints, or 401."""
+    sess = _org_session(request)
+    if not sess:
+        raise HTTPException(401, {"error": "signed_out", "message": "Sign in again."})
+    return sess
+
+
+@app.get("/account/me")
+def account_me(request: Request):
+    _hosted_only()
+    sess = _account_session(request)
+    org = _need_org(sess["org_id"])
+    u = _org_usage(sess["org_id"])
+    return {**u, "email": sess["email"], "tier": org["tier"], "billing_active": bool(org["stripe_subscription_id"]),
+            "keys": _key_rows(sess["org_id"])}
+
+
+@app.post("/billing/checkout")
+def billing_checkout(body: CheckoutIn, request: Request):
+    """Start a Stripe subscription Checkout for the signed-in org. The tier the price maps to (from
+    NEBULENS_STRIPE_PRICE_TIERS) travels in the session's own metadata, so the webhook doesn't need a second
+    lookup to know which plan was bought."""
+    _hosted_only()
+    sess = _account_session(request)
+    org = _need_org(sess["org_id"])
+    tier = STRIPE_PRICE_TIERS.get(body.price_id, "pro")
+    form = {"mode": "subscription", "client_reference_id": sess["org_id"], "customer_email": sess["email"],
+            "success_url": body.success_url, "cancel_url": body.cancel_url,
+            "line_items[0][price]": body.price_id, "line_items[0][quantity]": 1,
+            "metadata[org_id]": sess["org_id"], "metadata[tier]": tier}
+    if org["stripe_customer_id"]:
+        form["customer"] = org["stripe_customer_id"]
+        del form["customer_email"]
+    out = _stripe_request("checkout/sessions", form)
+    return {"url": out["url"]}
+
+
+@app.post("/billing/portal")
+def billing_portal(request: Request):
+    _hosted_only()
+    sess = _account_session(request)
+    org = _need_org(sess["org_id"])
+    if not org["stripe_customer_id"]:
+        raise HTTPException(400, {"error": "no_subscription", "message": "This organization has no billing account yet."})
+    out = _stripe_request("billing_portal/sessions", {"customer": org["stripe_customer_id"]})
+    return {"url": out["url"]}
+
+
+@app.post("/billing/webhook")
+async def billing_webhook(request: Request):
+    _hosted_only()
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(503, {"error": "billing_not_configured", "message": "No webhook secret is configured."})
+    payload = await request.body()
+    if not _verify_stripe_signature(payload, request.headers.get("stripe-signature", ""), STRIPE_WEBHOOK_SECRET):
+        raise HTTPException(400, {"error": "bad_signature", "message": "Stripe signature did not verify."})
+    event = json.loads(payload)
+    etype, obj = event.get("type", ""), event.get("data", {}).get("object", {})
+    if etype == "checkout.session.completed":
+        org_id = obj.get("client_reference_id") or (obj.get("metadata") or {}).get("org_id")
+        tier = (obj.get("metadata") or {}).get("tier", "pro")
+        if org_id and pq("SELECT 1 FROM orgs WHERE id=?", (org_id,)):
+            pexec("UPDATE orgs SET stripe_customer_id=?, stripe_subscription_id=? WHERE id=?",
+                  (obj.get("customer"), obj.get("subscription"), org_id))
+            _apply_org_tier(org_id, tier)
+    elif etype in ("customer.subscription.deleted", "customer.subscription.updated") and obj.get("status") in (
+            None, "canceled", "unpaid", "incomplete_expired"):
+        rows = pq("SELECT id FROM orgs WHERE stripe_customer_id=?", (obj.get("customer"),))
+        if rows:
+            _apply_org_tier(rows[0]["id"], "free")
+    return {"received": True}
 
 
 _disc = {"at": 0.0, "doc": None}
