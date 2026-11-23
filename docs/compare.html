@@ -94,7 +94,15 @@ footer a{color:var(--dim);text-decoration:none}
 .note-src{font-size:13px;color:var(--dim);margin-top:12px}
 .honest{margin:0;padding-left:20px;display:grid;gap:10px;max-width:760px;color:var(--muted)}
 .honest b{color:var(--text)}
+td.y2{color:var(--accent-2);font-weight:600}
 .code{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font:13px/1.6 var(--mono);overflow-x:auto;color:var(--text);margin:0}
+.worked{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
+.worked .card{border:1px solid var(--line);border-radius:14px;padding:20px 22px;background:var(--panel)}
+.worked .card.nl{border-color:rgba(139,124,246,.55);background:linear-gradient(160deg,rgba(139,124,246,.14),transparent 55%),var(--panel)}
+.worked h4{font-size:15px;margin-bottom:10px;color:var(--muted);font-weight:600}
+.worked .amt{font:700 30px var(--display);color:var(--text)}
+.worked .amt small{display:block;font:400 13px var(--body);color:var(--muted);margin-top:4px}
+@media (max-width:700px){.worked{grid-template-columns:1fr}}
 header .wrap p{max-width:44em}
 </style>
 </head>
@@ -109,6 +117,33 @@ header .wrap p{max-width:44em}
   <h1>Self-hosted observability without a database cluster to run</h1>
   <p>NebuLens stores traces, logs and metrics in SQLite or Postgres. The popular open-source stacks are built on ClickHouse or on four separate backends. Here is what that means for you, and when they are the better choice.</p>
 </div></header>
+
+<section id="vs-saas"><div class="wrap">
+  <h2>What companies pay today, and what's included here</h2>
+  <p class="sub">The team leaving Datadog, New Relic, Splunk or Dynatrace usually isn't choosing between self-hosted
+  tools first — they're trying to escape a bill with several separate meters: a per-host charge for infrastructure,
+  another per-host charge just to turn on tracing, a per-GB charge for logs, and SSO, audit logs, long retention or
+  data residency pushed into a pricier tier. NebuLens prices one way — per node — and includes tracing, SSO and
+  audit logs in that one Pro price. List prices below, straight from each vendor's own pricing page.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Vendor</th><th>How it's metered</th><th>List price</th><th>What commonly costs extra</th></tr></thead>
+    <tbody>
+      <tr><td><b>NebuLens</b></td><td>Per node</td><td class="y2">Pro: $99/mo (5 nodes incl., then $12/node; $129/mo billed monthly)</td><td>Nothing — tracing, SSO, audit log and AI assistant are in that price</td></tr>
+      <tr><td><a href="https://www.datadoghq.com/pricing/list/">Datadog</a></td><td>Per host, plus per-GB logs</td><td>Infra Pro $15/host/mo + APM $31/host/mo = $46/host/mo<sup>1</sup></td><td>Log ingest $0.10/GB + indexed-log retention $1.70 per 1M events (15 days)<sup>2</sup></td></tr>
+      <tr><td><a href="https://newrelic.com/pricing">New Relic</a></td><td>Per full-platform seat, plus per-GB ingest</td><td>Pro $349/user/mo (annual; $418.80/user billed monthly)<sup>3</sup></td><td>Data ingest $0.40/GB past the free 100 GB; extended retention via "Data Plus" $0.60/GB, +$0.05/GB for EU storage<sup>4</sup></td></tr>
+      <tr><td><a href="https://www.splunk.com/en_us/products/pricing/observability.html">Splunk Observability Cloud</a></td><td>Per host, plus per-GB/day logs, or a bundle</td><td>Infra $15/host/mo + APM $40/host/mo à la carte, or the Essentials bundle $95/host/mo<sup>5</sup></td><td>Logs $0.60/GB/day past the bundle's included allowance; RUM, synthetics and security need the $150/host/mo Premier bundle<sup>5</sup></td></tr>
+      <tr><td><a href="https://www.dynatrace.com/pricing/">Dynatrace</a></td><td>Per memory-GiB-hour, plus per-GiB ingest</td><td>Full-Stack Monitoring $0.01 per memory-GiB-hour<sup>6</sup></td><td>Log/trace ingest $0.20/GiB, plus separate retain ($0.0007/GiB-day) and query ($0.0035/GiB-scanned) charges<sup>6</sup></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note-src">All figures are public list prices, annual billing where the vendor distinguishes it, checked 23 November 2026 — vendors change these often, so follow the links for the current numbers. 1 <a href="https://www.datadoghq.com/pricing/list/">datadoghq.com/pricing/list</a>: Infrastructure Pro "$15" and APM "$31" per host/month, billed annually. 2 same page: Logs Ingestion "$0.10" per GB, Indexed Log Events "$1.70" per 1M (15-day retention). 3 <a href="https://newrelic.com/pricing">newrelic.com/pricing</a>: Pro "$349/user (for annual commitments)" and "$418.80/user (for monthly pay as you go)". 4 same page: data ingest "$0.40/GB beyond free 100 GB limit", Data Plus "$0.60/GB", EU data storage "additional $0.05/GB per month". 5 <a href="https://www.splunk.com/en_us/products/pricing/observability.html">splunk.com/en_us/products/pricing/observability.html</a>: Infrastructure Monitoring "$15/host/month", APM "$40/host/month", Observability Logs "$0.60/GB/day", Essentials Edition "$95/host/month", Premier Edition "$150/host/month" (editions start at 30 hosts). 6 <a href="https://www.dynatrace.com/pricing/">dynatrace.com/pricing</a>: Full-Stack Monitoring billed "$0.01 per memory-GiB-hour"; Pay-per-Query logs/traces "Ingest &amp; Process" "$0.20 per GiB", "Retain" "$0.0007 per GiB-day", "Query" "$0.0035 per GiB-scanned". Datadog, New Relic, Splunk and Dynatrace are trademarks of their owners; NebuLens is not affiliated with or endorsed by them.</p>
+
+  <div class="worked">
+    <div class="card"><h4>Datadog, 25 hosts (annual list, Infra Pro + APM only)</h4>
+      <div class="amt">$1,150<small>/ month, before log ingestion, indexing or any overage</small></div></div>
+    <div class="card nl"><h4>NebuLens Pro, 25 nodes, self-hosted</h4>
+      <div class="amt">$339<small>/ month ($99 for the first 5 nodes + 20 × $12) — tracing, SSO and audit log included, data never leaves your network</small></div></div>
+  </div>
+</div></section>
 
 <section id="table"><div class="wrap">
   <h2>At a glance</h2>
