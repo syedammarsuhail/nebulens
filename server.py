@@ -85,7 +85,8 @@ _LICENSE_PUBKEYS = ("VDMn9Yv+M/GgwrkXCy3stTCEKY9AdYw7lWUrI2S2+v4=",)
 _LICENSE_KEY = (os.environ.get("NEBULENS_LICENSE_KEY", "") or "").strip()
 COMMUNITY_NODES = 5        # the free tier: one cluster or VM fleet of up to 5 nodes
 PRICING_URL = os.environ.get("NEBULENS_PRICING_URL", "https://nebulens.dev/pricing.html")
-_LIMIT_NAMES = {"dashboards": "dashboards", "alerts": "alert rules", "slos": "SLOs", "synthetics": "synthetic checks"}
+_LIMIT_NAMES = {"dashboards": "dashboards", "alerts": "alert rules", "slos": "SLOs", "synthetics": "synthetic checks",
+                 "clusters": "registered cluster"}
 
 
 def _license_pubkeys():
@@ -195,8 +196,11 @@ def _print_tier():
 
 # Community-tier limits (Pro and Enterprise are unlimited). The footprint limit is in nodes, the same unit Pro is priced in;
 # there is no service cap: eBPF finds every workload on day one, and a service cap made the free tier look broken.
+# Clusters are capped separately (pricing.html promises "1 cluster, up to 5 nodes"): the node cap alone doesn't stop
+# someone registering several small clusters, which is the thing Pro's "unlimited clusters" is meant to be worth.
 TIER_LIMITS = {
     "max_nodes": COMMUNITY_NODES,
+    "max_clusters": 1,
     "max_dashboards": 10,
     "max_alerts": 15,
     "max_slos": 3,
@@ -4396,6 +4400,7 @@ def clusters_list():
 def cluster_create(body: ClusterIn):
     """Register a cluster and return its ingest token. The token is shown here once and never again."""
     _no_clusters_in_hosted()
+    _tier_check("clusters", "clusters")
     name = body.name.strip()
     slug = _cluster_slug(name)
     if not slug:

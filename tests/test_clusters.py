@@ -116,3 +116,26 @@ def test_tokens_are_stored_hashed(client, srv):
     c = _add(client, "hash-check")
     row = srv.q("SELECT token_hash, token_prefix FROM clusters WHERE slug=?", ("hash-check",))[0]
     assert row["token_hash"] == srv._hash_token(c["token"]) and c["token"] not in json.dumps(dict(row))
+
+
+def test_community_is_capped_at_one_cluster(srv, monkeypatch):
+    """pricing.html promises Community "1 cluster, up to 5 nodes" -- the node cap alone doesn't stop someone
+    registering several small clusters, so clusters need their own tier check (found live on a free-tier EKS
+    install: nothing stopped registering a 6th cluster before this check existed). Uses its own TestClient on a
+    throwaway database (not the shared session `client`) so it starts from a clean cluster count: the limit is 1,
+    not "whatever the shared suite happened to create before this test ran."""
+    import os
+    import tempfile
+    from fastapi.testclient import TestClient
+    db = os.path.join(tempfile.mkdtemp(), "nebulens.db")
+    monkeypatch.setattr(srv, "DB_PATH", db)
+    monkeypatch.setattr(srv, "_conn", srv._open_db(db))
+    monkeypatch.setattr(srv, "IS_PRO", False)
+    monkeypatch.setattr(srv, "IS_ENTERPRISE", False)
+    monkeypatch.setattr(srv, "TIER", "community")
+    with TestClient(srv.app) as c:
+        assert c.post("/api/clusters", json={"name": "only-cluster"}, headers=AUTH).status_code == 200
+        r = c.post("/api/clusters", json={"name": "second-cluster"}, headers=AUTH)
+        assert r.status_code == 403
+        j = r.json()
+        assert j["error"] == "tier_limit" and j["limit"] == 1 and j["tier"] == "community"
