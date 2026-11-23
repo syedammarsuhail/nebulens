@@ -194,6 +194,78 @@ def test_webhook_subscription_deleted_reverts_the_org_to_free(hclient):
     assert after["tier"] == "free" and after["billing_active"] is False
 
 
+# ---------------------------------------------------------------- hardening found by the QA/security agent pass
+def test_login_pays_the_same_hashing_cost_whether_or_not_the_email_exists(hclient, hosted, monkeypatch):
+    """A nonexistent email used to skip _verify_password (and its scrypt call) entirely, answering measurably
+    faster than a wrong password for a real account -- a ~30ms timing side-channel, confirmed exploitable for
+    email enumeration. Fix: always call _verify_password, against a fixed dummy hash when there's no account.
+    This checks the mechanism (the call always happens) rather than timing itself, which would be flaky."""
+    calls = []
+    real = hosted._verify_password
+    monkeypatch.setattr(hosted, "_verify_password", lambda pw, stored: (calls.append(stored), real(pw, stored))[1])
+
+    hclient.post("/login", json={"email": "definitely-not-registered@example.com", "password": "whatever123"})
+    assert len(calls) == 1 and calls[0] == hosted._DUMMY_PASSWORD_HASH
+
+    _signup(hclient, email="timing@example.com", password="the-real-password", org="Timing Co")
+    calls.clear()
+    hclient.post("/login", json={"email": "timing@example.com", "password": "wrong-one"})
+    assert len(calls) == 1 and calls[0] != hosted._DUMMY_PASSWORD_HASH
+
+
+def test_concurrent_signup_with_the_same_email_leaves_no_orphaned_org(hclient):
+    """Found live: two requests racing the same email could both pass the pre-check before either committed;
+    the loser's account insert then raised an unhandled 500, and -- because the org insert just before it was
+    a separate, already-committed statement -- left a permanently unusable, orphaned org name behind. Fixed by
+    making both inserts one real transaction, so the loser's org insert rolls back too."""
+    import concurrent.futures
+    email = "racer@example.com"
+    org_names = [f"Race Org {i}" for i in range(8)]
+
+    def attempt(name):
+        return hclient.post("/signup", json={"email": email, "password": "whatever12345", "org_name": name})
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        results = dict(zip(org_names, ex.map(attempt, org_names)))
+
+    statuses = sorted(r.status_code for r in results.values())
+    assert 500 not in statuses, "a racing signup crashed instead of cleanly losing the race"
+    assert statuses.count(200) == 1
+    assert statuses.count(409) == len(org_names) - 1
+    losing_names = [name for name, r in results.items() if r.status_code == 409]
+
+    # The one winning org name is legitimately taken (it has a real account attached) and must stay taken;
+    # every *losing* attempt's org name must NOT be orphaned -- each must still be free to use.
+    for i, name in enumerate(losing_names):
+        r = hclient.post("/signup", json={"email": f"racer-followup-{i}@example.com", "password": "whatever12345", "org_name": name})
+        assert r.status_code == 200, f"org name '{name}' was left behind orphaned by the race: {r.text}"
+
+
+def test_webhook_rejects_malformed_or_non_object_json_bodies_cleanly(hclient):
+    for body in (b"not even json{{{", b"", b"[1, 2, 3]", b'"just a string"', b"42"):
+        r = hclient.post("/billing/webhook", content=body, headers={"stripe-signature": _stripe_sig(body, WEBHOOK_SECRET)})
+        assert r.status_code == 400 and r.json()["error"] == "bad_payload", (body, r.status_code, r.text)
+
+
+def test_checkout_rejects_an_unmapped_price_id_instead_of_defaulting_to_pro(hclient):
+    """price_id -> tier used to default to "pro" for anything not in NEBULENS_STRIPE_PRICE_TIERS -- silently
+    wrong if an operator adds a new price in Stripe and forgets to map it here. Must fail closed instead."""
+    _signup(hclient, email="unmapped@example.com", org="Unmapped Co")
+    r = hclient.post("/billing/checkout", json={"price_id": "price_never_configured",
+                                                "success_url": "https://x/ok", "cancel_url": "https://x/no"})
+    assert r.status_code == 400 and r.json()["error"] == "unknown_price"
+
+
+def test_signup_with_a_non_json_content_type_fails_cleanly_not_with_a_500(hclient):
+    """The shared validation-error handler crashed trying to JSON-serialize the raw bytes body FastAPI
+    attaches to a validation error when the Content-Type isn't JSON -- reachable by anyone, since /signup and
+    /login are unauthenticated and public, unlike most of this handler's other (API-key-gated) callers."""
+    hclient.cookies.clear()
+    r = hclient.post("/signup", content=b'{"email":"x@example.com","password":"whatever1","org_name":"X Org"}',
+                     headers={"Content-Type": "text/plain"})
+    assert r.status_code < 500, r.text
+
+
 # ---------------------------------------------------------------- self-hosted mode must not expose any of this
 def test_self_hosted_server_does_not_expose_signup_or_billing(client):
     """`client` here is the main suite's self-hosted TestClient (conftest.py), not the hosted one above --

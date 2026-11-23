@@ -1612,12 +1612,17 @@ async def request_id(request: Request, call_next):
 
 @app.exception_handler(RequestValidationError)
 async def _vexc(request: Request, exc: RequestValidationError):
-    # Pydantic puts raw Exception objects in err["ctx"]; stringify so JSON works.
+    # Pydantic puts raw Exception objects in err["ctx"]; stringify so JSON works. When the body couldn't be
+    # parsed as JSON at all (e.g. a non-JSON Content-Type, or no Content-Type), err["input"] is the raw request
+    # body as bytes -- also not JSON-serializable, which crashed this handler itself with a 500 (found live,
+    # via /signup and /login: unauthenticated public endpoints, so anyone could trigger it with no credentials).
     details = []
     for err in exc.errors():
         clean = {k: v for k, v in err.items() if k != "ctx"}
         if "ctx" in err:
             clean["ctx"] = {k: str(v) for k, v in err["ctx"].items()}
+        if isinstance(clean.get("input"), (bytes, bytearray)):
+            clean["input"] = clean["input"].decode("utf-8", "replace")
         details.append(clean)
     return JSONResponse({"error": "validation_failed", "details": details,
                          "request_id": getattr(request.state, "rid", "")}, status_code=400)
@@ -5414,6 +5419,12 @@ def _verify_password(pw, stored):
         return False
 
 
+# A fixed dummy hash scrypt'd once at import, so /login can always pay the same scrypt cost whether or not the
+# email exists -- otherwise a nonexistent email skips hashing entirely and answers measurably faster than a
+# wrong password for a real one (~30ms gap, confirmed exploitable for email enumeration in testing).
+_DUMMY_PASSWORD_HASH = _hash_password(secrets.token_hex(32))
+
+
 def _stripe_request(path, form=None, method="POST"):
     """Minimal form-encoded Stripe REST client (every Stripe endpoint accepts that). Tests replace this with a
     fake Stripe, the same way _idp_request is replaced with a fake identity provider."""
@@ -6061,16 +6072,27 @@ def signup(body: SignupIn, request: Request, response: Response):
     email = body.email.strip().lower()
     if pq("SELECT 1 FROM accounts WHERE email=?", (email,)):
         raise HTTPException(409, {"error": "email_taken", "message": "An account with this email already exists."})
-    oid = _new_id("org")
+    oid, aid = _new_id("org"), _new_id("acct")
     q = HOSTED_TIER_QUOTAS["free"]
-    try:
-        pexec("INSERT INTO orgs(id,name,created,daily_cap,retention_hours,tier) VALUES(?,?,?,?,?,?)",
-              (oid, body.org_name, int(time.time()), q["daily_cap"] or None, q["retention_hours"], "free"))
-    except _IntegrityError:
-        raise HTTPException(409, {"error": "org_name_taken", "message": f"An organization called '{body.org_name}' already exists."})
-    aid = _new_id("acct")
-    pexec("INSERT INTO accounts(id,org_id,email,password_hash,created,last_login) VALUES(?,?,?,?,?,?)",
-          (aid, oid, email, _hash_password(body.password), int(time.time()), int(time.time())))
+    now = int(time.time())
+    # Both inserts in one real transaction (not two separate pexec() auto-commits): two requests for the same
+    # email can both pass the SELECT check above before either commits (TOCTOU), so the accounts insert's own
+    # UNIQUE constraint is the real guard -- and when it loses that race, the org insert just before it must
+    # roll back too, or the loser leaves a permanently orphaned, unusable org name behind (found live: the org
+    # insert was committed on its own and never cleaned up when the following account insert then raised,
+    # unhandled, as a 500).
+    with _plat_lock:
+        try:
+            _plat.execute("INSERT INTO orgs(id,name,created,daily_cap,retention_hours,tier) VALUES(?,?,?,?,?,?)",
+                          (oid, body.org_name, now, q["daily_cap"] or None, q["retention_hours"], "free"))
+            _plat.execute("INSERT INTO accounts(id,org_id,email,password_hash,created,last_login) VALUES(?,?,?,?,?,?)",
+                          (aid, oid, email, _hash_password(body.password), now, now))
+            _plat.commit()
+        except _IntegrityError as e:
+            _plat.rollback()
+            if "accounts" in str(e):
+                raise HTTPException(409, {"error": "email_taken", "message": "An account with this email already exists."})
+            raise HTTPException(409, {"error": "org_name_taken", "message": f"An organization called '{body.org_name}' already exists."})
     admin_key = _mint_key(oid, "admin", "initial admin key")
     _issue_org_session(response, {"id": aid, "org_id": oid, "email": email}, request)
     return {"org_id": oid, "org_name": body.org_name, "email": email, "admin_key": admin_key}
@@ -6081,7 +6103,9 @@ def login(body: LoginIn, request: Request, response: Response):
     _hosted_only()
     email = body.email.strip().lower()
     rows = pq("SELECT * FROM accounts WHERE email=?", (email,))
-    if not rows or not _verify_password(body.password, rows[0]["password_hash"]):
+    stored_hash = rows[0]["password_hash"] if rows else _DUMMY_PASSWORD_HASH
+    ok = _verify_password(body.password, stored_hash)   # always run, even for a nonexistent email (see _DUMMY_PASSWORD_HASH)
+    if not rows or not ok:
         raise HTTPException(401, {"error": "invalid_credentials", "message": "Wrong email or password."})
     acct = rows[0]
     pexec("UPDATE accounts SET last_login=? WHERE id=?", (int(time.time()), acct["id"]))
@@ -6123,7 +6147,13 @@ def billing_checkout(body: CheckoutIn, request: Request):
     _hosted_only()
     sess = _account_session(request)
     org = _need_org(sess["org_id"])
-    tier = STRIPE_PRICE_TIERS.get(body.price_id, "pro")
+    tier = STRIPE_PRICE_TIERS.get(body.price_id)
+    if not tier:
+        # Fail closed, not silently wrong: defaulting an unmapped price to "pro" would mean an operator who
+        # adds a new Enterprise price in Stripe but forgets to update NEBULENS_STRIPE_PRICE_TIERS silently
+        # grants Enterprise customers Pro-only quotas instead, with nothing ever surfacing the mismatch.
+        raise HTTPException(400, {"error": "unknown_price", "message":
+                                  "This price_id is not mapped to a tier in NEBULENS_STRIPE_PRICE_TIERS."})
     form = {"mode": "subscription", "client_reference_id": sess["org_id"], "customer_email": sess["email"],
             "success_url": body.success_url, "cancel_url": body.cancel_url,
             "line_items[0][price]": body.price_id, "line_items[0][quantity]": 1,
@@ -6154,7 +6184,12 @@ async def billing_webhook(request: Request):
     payload = await request.body()
     if not _verify_stripe_signature(payload, request.headers.get("stripe-signature", ""), STRIPE_WEBHOOK_SECRET):
         raise HTTPException(400, {"error": "bad_signature", "message": "Stripe signature did not verify."})
-    event = json.loads(payload)
+    try:
+        event = json.loads(payload)
+    except (json.JSONDecodeError, ValueError):
+        raise HTTPException(400, {"error": "bad_payload", "message": "Webhook body is not valid JSON."})
+    if not isinstance(event, dict):
+        raise HTTPException(400, {"error": "bad_payload", "message": "Webhook body must be a JSON object."})
     etype, obj = event.get("type", ""), event.get("data", {}).get("object", {})
     if etype == "checkout.session.completed":
         org_id = obj.get("client_reference_id") or (obj.get("metadata") or {}).get("org_id")
